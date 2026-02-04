@@ -11,11 +11,11 @@ export class AiService {
 
   async analyzeJob(resume: string, jobDescription: string): Promise<AiJobAnalysis|undefined> {
     const prompt = `
-      У меня есть резюме: "${resume}"
-      И описание вакансии: "${jobDescription}"
+      I have a resume: "${resume}"
+      And a job description: "${jobDescription}"
       
-      Оцени соответствие кандидата вакансии от 0 до 10. 
-      Ответь строго в формате JSON: {"score": 8, "reason": "краткое пояснение почему"}
+      Evaluate the candidate's fit for the position on a scale from 0 to 10. 
+      Respond strictly in JSON format: {"score": 8, "reason": "brief explanation why"}
     `;
 
     try {

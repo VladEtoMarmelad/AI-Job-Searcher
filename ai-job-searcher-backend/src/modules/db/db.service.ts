@@ -33,11 +33,13 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
     return this.db.collection<Vacancy>('vacancies');
   }
 
-  async saveVacancy(vacancy: Vacancy) {
-    return await this.collection.insertOne(vacancy);
+  // Check if a vacancy with the given URL already exists in the database
+  async isVacancyExists(url: string): Promise<boolean> {
+    const count = await this.collection.countDocuments({ url }, { limit: 1 });
+    return count > 0;
   }
 
-  async getAllVacancies() {
-    return await this.collection.find().toArray();
+  async saveVacancy(vacancy: Vacancy) {
+    return await this.collection.insertOne(vacancy);
   }
 }

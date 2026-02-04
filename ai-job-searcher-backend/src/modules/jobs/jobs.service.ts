@@ -41,8 +41,16 @@ export class JobsService implements OnApplicationBootstrap {
     const jobs: string[] = await this.fetcher.searchJobs("Node.js Developer");
 
     for (const url of jobs) {
+      // Check if the vacancy has already been processed and saved
+      const exists = await this.db.isVacancyExists(url);
+      if (exists) {
+        this.logger.log(`Vacancy already exists in DB, skipping: ${url}`);
+        continue;
+      }
+
       const description = await this.parser.extractJobDescription(url);
       const analysis = await this.ai.analyzeJob(myResume, description);
+      
       await this.db.saveVacancy({
         url,
         description: analysis?.reason ?? "",

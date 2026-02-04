@@ -17,10 +17,10 @@ export class NotifierService {
 
   async sendAlert(jobUrl: string, analysis: AiJobAnalysis) {
     const message = `
-      **Найдена подходящая вакансия!**
-      **Оценка:** ${analysis.score}/10
-      **Почему:** ${analysis.reason}
-      **Ссылка:** ${jobUrl}
+      **Matching Job Found!**
+      **Score:** ${analysis.score}/10
+      **Reason:** ${analysis.reason}
+      **Link:** ${jobUrl}
     `;
 
     // Send to gmail
