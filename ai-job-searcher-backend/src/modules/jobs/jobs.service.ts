@@ -10,6 +10,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 export class JobsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(JobsService.name);
 
+  // Externalized configuration via environment variables
+  private readonly resume = process.env.CANDIDATE_RESUME || "Fullstack Developer, NestJS, TypeScript, React, Trainee/Junior";
+  private readonly filters = process.env.JOB_FILTERS || "";
+  private readonly searchKeyword = process.env.SEARCH_KEYWORD || "Node.js Developer";
+  private readonly minScore = parseInt(process.env.MIN_SCORE || '8', 10);
+
   constructor(
     private fetcher: FetcherService,
     private parser: ParserService,
@@ -18,7 +24,6 @@ export class JobsService implements OnApplicationBootstrap {
     private db: DbService
   ) {}
 
-  // This method will execute ONCE when the application starts
   async onApplicationBootstrap() {
     try {
       this.logger.log('The application is launched. Initiating the first search cycle...');
@@ -28,20 +33,17 @@ export class JobsService implements OnApplicationBootstrap {
     }
   }
 
-  // This method will run automatically every hour
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(process.env.SEARCH_CRON || CronExpression.EVERY_HOUR)
   async handleScheduledSearch() {
     this.logger.log('Launching a scheduled job search...');
     await this.runSearchCycle();
   }
 
-  // Scheduled run once an hour
   async runSearchCycle() {
-    const myResume = "Fullstack Developer, NestJS, TypeScript, React, 3 years exp...";
-    const jobs: string[] = await this.fetcher.searchJobs("Node.js Developer");
+    // Keywords and filters are now derived from class properties
+    const jobs: string[] = await this.fetcher.searchJobs(this.searchKeyword);
 
     for (const url of jobs) {
-      // Check if the vacancy has already been processed and saved
       const exists = await this.db.isVacancyExists(url);
       if (exists) {
         this.logger.log(`Vacancy already exists in DB, skipping: ${url}`);
@@ -49,7 +51,7 @@ export class JobsService implements OnApplicationBootstrap {
       }
 
       const description = await this.parser.extractJobDescription(url);
-      const analysis = await this.ai.analyzeJob(myResume, description);
+      const analysis = await this.ai.analyzeJob(this.resume, description, this.filters);
       
       await this.db.saveVacancy({
         url,
@@ -57,12 +59,13 @@ export class JobsService implements OnApplicationBootstrap {
         score: analysis?.score ?? 0
       })
 
-      if (analysis && analysis.score >= 8) {
+      // Threshold is parameterized
+      if (analysis && analysis.score >= this.minScore) {
         await this.notifier.sendAlert(url, analysis);
       }
 
-      // A short pause to avoid being banned
-      await new Promise(res => setTimeout(res, 2000));
+      const delay = parseInt(process.env.REQUEST_DELAY_MS || '2000', 10);
+      await new Promise(res => setTimeout(res, delay));
     }
   }
 }

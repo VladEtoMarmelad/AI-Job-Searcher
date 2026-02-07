@@ -8,22 +8,19 @@ chromium.use(StealthPlugin());
 export class FetcherService {
   private readonly logger = new Logger(FetcherService.name);
 
+  // Configuration for browser behavior and targets
+  private readonly userAgent = process.env.BROWSER_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+  private readonly maxSearchPages = parseInt(process.env.MAX_SEARCH_PAGES || '3', 10);
+  private readonly targets = (process.env.JOB_SITES || 'work.ua,robota.ua,dou.ua,djinni.co').split(',');
+
   async searchJobs(keyword: string): Promise<string[]> {
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      userAgent: this.userAgent,
     });
 
     const page = await context.newPage();
     const allLinks = new Set<string>();
-
-    // Enabled all previously commented targets
-    const targets = [
-      'work.ua',
-      'robota.ua',
-      'dou.ua',
-      'djinni.co'
-    ];
 
     const jobPathPatterns: Record<string, string> = {
       'work.ua': 'site:work.ua/jobs/',
@@ -33,7 +30,7 @@ export class FetcherService {
     };
 
     try {
-      for (const domain of targets) {
+      for (const domain of this.targets) {
         const specificSiteConstraint = jobPathPatterns[domain] || `site:${domain}`;
         const query = `${specificSiteConstraint} "${keyword}"`;
         const searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&ia=web`;
@@ -41,9 +38,7 @@ export class FetcherService {
         this.logger.log(`Searching for ${keyword} on ${domain}...`);
         await page.goto(searchUrl, { waitUntil: 'networkidle' });
 
-        // Iterate through multiple search result pages
-        const maxSearchPages = 3;
-        for (let i = 1; i <= maxSearchPages; i++) {
+        for (let i = 1; i <= this.maxSearchPages; i++) {
           try {
             await page.waitForSelector('[data-testid="result-title-a"]', { timeout: 5000 });
 
@@ -52,12 +47,10 @@ export class FetcherService {
             });
 
             for (const link of searchResultLinks) {
-              // Logic for DOU: if the link is a list/category, visit it to extract real job URLs
               if (domain === 'dou.ua' && (link.includes('/vacancies/') || link.includes('category'))) {
                 const subPage = await context.newPage();
                 try {
                   await subPage.goto(link, { waitUntil: 'domcontentloaded', timeout: 10000 });
-                  // DOU uses .vt class for vacancy titles/links in their lists
                   const innerLinks = await subPage.$$eval('a.vt', (anchors) => 
                     anchors.map(a => (a as HTMLAnchorElement).href)
                   );
@@ -69,7 +62,6 @@ export class FetcherService {
                 }
               }
 
-              // Filter and add direct vacancy links for all platforms
               if (domain === 'work.ua' && /\/jobs\/\d+/.test(link)) allLinks.add(link);
               if (domain === 'robota.ua' && link.includes('/vacancy/')) allLinks.add(link);
               if (domain === 'dou.ua' && /\/vacancies\/\d+/.test(link)) allLinks.add(link);
@@ -78,7 +70,6 @@ export class FetcherService {
               }
             }
 
-            // Navigate to the next set of results if available
             const moreButton = await page.$('#more-results');
             if (moreButton) {
               await moreButton.click();

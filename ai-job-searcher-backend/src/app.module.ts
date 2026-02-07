@@ -16,7 +16,10 @@ import { DbService } from './modules/db/db.service';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ 
+      isGlobal: true,
+      envFilePath: ['.env', '.env.jobsearch']
+    }),
     ScheduleModule.forRoot(), 
     FetcherModule, 
     JobsModule, 

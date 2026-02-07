@@ -4,19 +4,21 @@ import * as cheerio from 'cheerio';
 
 @Injectable()
 export class ParserService {
+  // Max text length for AI context window management
+  private readonly maxTextLength = parseInt(process.env.MAX_PARSER_LENGTH || '5000', 10);
+
   async extractJobDescription(url: string): Promise<string> {
     try {
       const { data } = await axios.get(url);
       const $ = cheerio.load(data);
       
-      // Удаляем скрипты и стили
-      $('script, style').remove();
+      // Remove non-content elements to reduce noise
+      $('script, style, nav, footer, header').remove();
       
-      // Обычно текст вакансии лежит в main или конкретных селекторах
-      // Для универсальности берем body и чистим лишние пробелы
+      // Normalize whitespace and extract text from body
       const text = $('body').text().replace(/\s\s+/g, ' ').trim();
       
-      return text.substring(0, 5000); // Ограничиваем длину для контекста ИИ
+      return text.substring(0, this.maxTextLength);
     } catch (e) {
       return '';
     }
