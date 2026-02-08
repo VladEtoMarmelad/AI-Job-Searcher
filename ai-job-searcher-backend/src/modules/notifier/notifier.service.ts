@@ -19,7 +19,7 @@ export class NotifierService {
     const message = `
       **Matching Job Found!**
       **Score:** ${analysis.score}/10
-      **Reason:** ${analysis.reason}
+      **Reason:** ${analysis.reasoning}
       **Link:** ${jobUrl}
     `;
 

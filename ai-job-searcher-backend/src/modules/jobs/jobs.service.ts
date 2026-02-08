@@ -55,12 +55,12 @@ export class JobsService implements OnApplicationBootstrap {
       
       await this.db.saveVacancy({
         url,
-        description: analysis?.reason ?? "",
+        description: analysis?.reasoning ?? "",
         score: analysis?.score ?? 0
       })
 
       // Threshold is parameterized
-      if (analysis && analysis.score >= this.minScore) {
+      if (analysis && analysis.score >= this.minScore && process.env.SEND_NOTIFY_EMAIL==="true") {
         await this.notifier.sendAlert(url, analysis);
       }
 
