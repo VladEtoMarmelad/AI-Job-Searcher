@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { chromium } from 'playwright-extra';
+import { getSiteConfigs } from 'src/utils/getSiteConfigs';
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 chromium.use(StealthPlugin());
@@ -25,28 +26,7 @@ export class FetcherService {
 
     const page = await context.newPage();
     const allLinks = new Set<string>();
-
-    const siteConfigs: Record<string, { url: string, linkSelector: string, nextBtn?: string }> = {
-      'work.ua': {
-        url: `https://www.work.ua/jobs-${encodeURIComponent(keyword)}/`,
-        linkSelector: 'h2 a',
-        nextBtn: '.pagination.pagination-reg li:last-child a'
-      },
-      'robota.ua': {
-        url: `https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine`,
-        linkSelector: 'alliance-vacancy-card-desktop a',
-      },
-      'dou.ua': {
-        url: `https://jobs.dou.ua/vacancies/?search=${encodeURIComponent(keyword)}`,
-        linkSelector: 'a.vt',
-        nextBtn: '.more-btn a'
-      },
-      'djinni.co': {
-        url: `https://djinni.co/jobs/?keywords=${encodeURIComponent(keyword)}`,
-        linkSelector: '.job-list-item__link',
-        nextBtn: '.pagination li:last-child a'
-      }
-    };
+    const siteConfigs = getSiteConfigs(keyword);
 
     try {
       for (const domain of this.targets) {
@@ -56,11 +36,11 @@ export class FetcherService {
         try {
           this.logger.log(`Navigating to ${domain}...`);
           
-          // 1. Используем 'domcontentloaded' вместо 'networkidle'
+          // 1. Use 'domcontentloaded' instead of 'networkidle' for faster loading
           await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
           
           for (let i = 1; i <= this.maxSearchPages; i++) {
-            // 2. Ждем появления конкретного элемента вместо ожидания затишья сети
+            // 2. Wait for a specific element to appear instead of waiting for the network to go idle
             try {
               await page.waitForSelector(config.linkSelector, { timeout: 10000 });
             } catch (e) {
@@ -68,19 +48,23 @@ export class FetcherService {
               break;
             }
 
-            // Прокрутка вниз для подгрузки (актуально для Robota/DOU)
-            await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+            // Scroll down to trigger lazy loading
+            for (let i=0; i<=10; i++) {
+              await page.evaluate(() => window.scrollBy(0, 500));
+            }
+            await page.waitForTimeout(1000); // Allow time for rendering
 
             const links = await page.$$eval(config.linkSelector, (anchors) => 
-               anchors.map(a => (a as HTMLAnchorElement).href)
+              anchors.map(a => (a as HTMLAnchorElement).href)
             );
+            this.logger.log(`Links founded for ${domain} domain: ${links.length}`)
 
             links.forEach(l => {
-                const clean = l.split('?')[0].replace(/\/$/, '');
-                if (clean.includes(domain)) allLinks.add(clean);
+              const clean = l.split('?')[0].replace(/\/$/, '');
+              if (clean.includes(domain)) allLinks.add(clean);
             });
 
-            // Логика пагинации
+            // Pagination logic
             if (config.nextBtn) {
               const nextBtn = await page.$(config.nextBtn);
               if (nextBtn) {
@@ -93,12 +77,15 @@ export class FetcherService {
                   continue;
                 }
               }
+            } else {
+              await page.goto(`https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine/params;page=${i}`);
+              continue
             }
             break; 
           }
         } catch (domainError) {
           this.logger.error(`Error processing ${domain}: ${domainError.message}`);
-          // Переходим к следующему домену, если этот упал
+          // Proceed to the next domain if the current one fails
         }
       }
     } finally {
