@@ -11,7 +11,7 @@ export class FetcherService {
 
   private readonly userAgent = process.env.BROWSER_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
   private readonly maxSearchPages = parseInt(process.env.MAX_SEARCH_PAGES || '3', 10);
-  private readonly targets = (process.env.JOB_SITES || 'work.ua,robota.ua,dou.ua,djinni.co').split(',');
+  private readonly targets = (process.env.JOB_SITES || 'robota.ua,dou.ua,djinni.co').split(',');
 
   async searchJobs(keyword: string): Promise<string[]> {
     const browser = await chromium.launch({ 
@@ -49,14 +49,15 @@ export class FetcherService {
             }
 
             // Scroll down to trigger lazy loading
-            for (let i=0; i<=10; i++) {
-              await page.evaluate(() => window.scrollBy(0, 500));
+            for (let i=0; i<=50; i++) {
+              await page.evaluate(() => window.scrollBy(0, 100));
             }
             await page.waitForTimeout(1000); // Allow time for rendering
 
             const links = await page.$$eval(config.linkSelector, (anchors) => 
               anchors.map(a => (a as HTMLAnchorElement).href)
             );
+            console.log(links)
             this.logger.log(`Links founded for ${domain} domain: ${links.length}`)
 
             links.forEach(l => {

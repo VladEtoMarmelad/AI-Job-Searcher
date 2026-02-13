@@ -4,7 +4,7 @@ export const getSiteConfigs = (keyword: string) => {
   const siteConfigs: Record<string, SiteConfig> = {
     'robota.ua': {
       url: `https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine`,
-      linkSelector: 'alliance-vacancy-card-desktop a',
+      linkSelector: 'alliance-jobseeker-desktop-vacancies-list alliance-vacancy-card-desktop a',
     },
     'dou.ua': {
       url: `https://jobs.dou.ua/vacancies/?search=${encodeURIComponent(keyword)}`,
