@@ -29,7 +29,7 @@ coverage/
 *.sublime-workspace
 
 # IDE - VSCode
-# Убрали слеш, чтобы игнорировать .vscode в подпапках (например, в монорепозиториях)
+# Ignore .vscode in subfolders (e.g. in monorepos)
 .vscode/
 !.vscode/settings.json
 !.vscode/tasks.json

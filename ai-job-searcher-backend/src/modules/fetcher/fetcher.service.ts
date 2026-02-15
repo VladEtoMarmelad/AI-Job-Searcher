@@ -57,7 +57,7 @@ export class FetcherService {
             const links = await page.$$eval(config.linkSelector, (anchors) => 
               anchors.map(a => (a as HTMLAnchorElement).href)
             );
-            console.log(links)
+
             this.logger.log(`Links founded for ${domain} domain: ${links.length}`)
 
             links.forEach(l => {
