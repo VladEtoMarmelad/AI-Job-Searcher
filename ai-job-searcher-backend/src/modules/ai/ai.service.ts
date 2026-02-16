@@ -30,7 +30,6 @@ export class AiService {
       - Critical Mismatch (Candidate is 2+ levels below JD_Level, e.g., Junior applying for Senior): Max score 3.
       - If JD_Level is "Junior" and Candidate_Level is "Junior" or "Strong Junior", this is a MATCH (Score 8-10).
       - If JD mismatch filters Max score: 5.
-      - If job is inactive Max score: 2.
 
       Input Data:
       - Resume: "${resume}"
@@ -43,10 +42,6 @@ export class AiService {
 
       Format: 
       {
-        "extracted_levels": {
-          "job": "<string>",
-          "candidate": "<string>"
-        },
         "score": <number>,
         "reasoning": "<string>"
       }
