@@ -7,14 +7,14 @@ import Groq from "groq-sdk";
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   
-  // Model parameters externalized for easy switching between local models
-  private readonly modelName = process.env.AI_MODEL_NAME || 'compound-beta';
+  private readonly modelName = process.env.AI_MODEL_NAME || 'llama-3.3-70b-versatile';
   
   private readonly groq = new Groq({apiKey: process.env.GROQ_API_KEY});
 
   async analyzeJob(resume: string, jobDescription: string, filters: string): Promise<AiJobAnalysis|undefined> {
-    // Structured prompt with injected variables
-    const prompt = `
+    
+    // System prompt defines the persona, rules, and output format
+    const systemPrompt = `
       Role: You are an objective Technical Recruitment Evaluator. Your task is to accurately match candidate seniority and skills to the Job Description.
 
       Evaluation Process:
@@ -31,15 +31,10 @@ export class AiService {
       - If JD_Level is "Junior" and Candidate_Level is "Junior" or "Strong Junior", this is a MATCH (Score 8-10).
       - If JD mismatch filters Max score: 5.
 
-      Input Data:
-      - Resume: "${resume}"
-      - Job Description: "${jobDescription}"
-      - Filters: "${filters}"
-
       Response Requirements:
-      - Respond strictly in JSON.
+      - Respond strictly in valid JSON format.
       - The "reasoning" must start with the extracted levels.
-
+      
       Format: 
       {
         "score": <number>,
@@ -47,15 +42,27 @@ export class AiService {
       }
     `;
 
+    // User prompt contains the dynamic data to be processed
+    const userPrompt = `
+      Input Data for Analysis:
+      - Resume: "${resume}"
+      - Job Description: "${jobDescription}"
+      - Filters: "${filters}"
+    `;
+
     try {
       const chatCompletion = await this.groq.chat.completions.create({
         messages: [
           {
+            role: "system",
+            content: systemPrompt
+          },
+          {
             role: "user",
-            content: prompt
+            content: userPrompt
           }
         ],
-        model: process.env.AI_MODEL_NAME ?? "compound-beta", 
+        model: this.modelName, 
         temperature: 0.1,
         max_tokens: 5120,
         top_p: 1,
@@ -63,7 +70,8 @@ export class AiService {
         stop: null
       });
 
-      return cleanAndParseJSON(chatCompletion.choices[0]?.message?.content ?? "")
+      const content = chatCompletion.choices[0]?.message?.content ?? "";
+      return cleanAndParseJSON(content);
     } catch (error) {
       this.logger.error(`Error using AI model (${this.modelName}):`, error);
     }
