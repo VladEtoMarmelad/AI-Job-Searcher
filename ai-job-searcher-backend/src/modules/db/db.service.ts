@@ -42,4 +42,9 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
   async saveVacancy(vacancy: Vacancy) {
     return await this.collection.insertOne(vacancy);
   }
+
+  async getVacancies() {
+    const collection = this.db.collection<Vacancy>('vacancies');
+    return await collection.find({}).toArray();
+  }
 }

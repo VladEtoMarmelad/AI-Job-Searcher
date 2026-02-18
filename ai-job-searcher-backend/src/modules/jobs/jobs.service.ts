@@ -24,10 +24,10 @@ export class JobsService implements OnApplicationBootstrap {
     private db: DbService
   ) {}
 
-  async onApplicationBootstrap() {
+  onApplicationBootstrap() {
     try {
       this.logger.log('The application is launched. Initiating the first search cycle...');
-      await this.runSearchCycle();
+      this.runSearchCycle();
     } catch (error: unknown) {
       this.logger.error("error: ", error)
     }

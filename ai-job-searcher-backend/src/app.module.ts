@@ -13,6 +13,8 @@ import { ParserService } from './modules/parser/parser.service';
 import { ConfigModule } from '@nestjs/config'
 import { DbModule } from './modules/db/db.module';
 import { DbService } from './modules/db/db.service';
+import { DbController } from './modules/db/db.controller';
+
 
 @Module({
   imports: [
@@ -35,6 +37,7 @@ import { DbService } from './modules/db/db.service';
     NotifierService, 
     ParserService,
     DbService
-  ]
+  ],
+  controllers: [DbController]
 })
 export class AppModule {}
