@@ -1,11 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { MongoClient, Collection, Db } from 'mongodb';
-
-export interface Vacancy {
-  url: string;
-  description: string;
-  score: number;
-}
+import { Vacancy } from "@sharedTypes/Vacancy"
 
 @Injectable()
 export class DbService implements OnModuleInit, OnModuleDestroy {
