@@ -8,6 +8,9 @@ Navigate to the backend directory and install dependencies:
 ```bash
 cd ai-job-searcher-backend
 pnpm install
+
+# Also you need to install the specific browser your project uses (likely Chromium):
+pnpm exec playwright install chromium
 ```
 
 Navigate to the frontend directory and install dependencies:
