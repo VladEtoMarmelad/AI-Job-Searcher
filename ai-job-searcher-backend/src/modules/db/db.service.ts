@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { MongoClient, Collection, Db } from 'mongodb';
+import { MongoClient, Collection, Db, ObjectId, WithId } from 'mongodb';
 import { Vacancy } from "@sharedTypes/Vacancy"
 
 @Injectable()
@@ -41,5 +41,10 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
   async getVacancies() {
     const collection = this.db.collection<Vacancy>('vacancies');
     return await collection.find({}).toArray();
+  }
+
+  async deleteVacancy(id: string) {
+    const collection = this.db.collection<WithId<Vacancy>>('vacancies');
+    await collection.deleteOne({ _id: new ObjectId(id) as any });
   }
 }

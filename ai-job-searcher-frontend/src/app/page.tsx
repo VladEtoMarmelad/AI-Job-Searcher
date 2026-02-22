@@ -1,11 +1,28 @@
 import { Vacancy } from "@sharedTypes/Vacancy"
 import { revalidatePath } from 'next/cache';
 import axios from 'axios';
+import DeleteButton from '../components/DeleteButton'; 
 
 /* Server Action that triggers a data re-fetch by invalidating the current path's cache */
 async function refreshAction() {
   'use server';
   revalidatePath('/');
+}
+
+/**
+ * Server Action to handle the deletion of a vacancy.
+ * Communicates with the external API and refreshes the cache.
+ */
+async function deleteVacancyAction(id: string) {
+  'use server';
+  try {
+    // Sends a request to the delete endpoint with the specific vacancy ID
+    await axios.delete(`http://localhost:3030/db/vacancy/delete`, { params: { id } });
+    // Invalidate the cache to remove the deleted item from the UI immediately
+    revalidatePath('/');
+  } catch (err: unknown) {
+    console.error("Error deleting vacancy:", err);
+  }
 }
 
 // Updated HomePage to accept searchParams for filtering
@@ -133,9 +150,11 @@ export default async function HomePage({
                         <span className="bg-amber-500/10 text-amber-500 text-xs font-bold px-2 py-1 rounded border border-amber-500/20">
                           Score: {vacancy.score.toFixed(1)}
                         </span>
-                        <span className="text-gray-600 text-[10px] uppercase tracking-widest font-mono">
-                          ID: {vacancy._id?.slice(-6)}
-                        </span>
+                        {/* Delete logic integration */}
+                        <DeleteButton 
+                          id={vacancy._id ?? ""} 
+                          onDelete={deleteVacancyAction} 
+                        />
                       </div>
 
                       <details className="group/desc mb-6 cursor-pointer">
