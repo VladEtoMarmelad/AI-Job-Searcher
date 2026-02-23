@@ -2,8 +2,13 @@
 
 import { useState } from 'react';
 
+interface DeleteButtonProps {
+  id: string;
+  onDelete: (id: string) => Promise<void>
+}
+
 // Client Component that manages the confirmation state before calling the delete Server Action.
-export default function DeleteButton({ id, onDelete }: { id: string, onDelete: (id: string) => Promise<void> }) {
+export const DeleteButton = ({ id, onDelete }: DeleteButtonProps) => {
   const [isConfirming, setIsConfirming] = useState(false);
 
   // When user clicks 'Delete', we show the confirmation screen
