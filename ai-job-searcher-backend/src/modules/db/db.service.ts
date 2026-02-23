@@ -47,4 +47,14 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
     const collection = this.db.collection<WithId<Vacancy>>('vacancies');
     await collection.deleteOne({ _id: new ObjectId(id) as any });
   }
+
+  async updateVacancyStatus(id: string, viewed: boolean) {
+    const collection = this.db.collection<WithId<Vacancy>>('vacancies');
+    const isViewed = String(viewed) === 'true';
+
+    await collection.updateOne(
+      { _id: new ObjectId(id) as any },
+      { $set: { viewed: isViewed } }
+    )
+  }
 }

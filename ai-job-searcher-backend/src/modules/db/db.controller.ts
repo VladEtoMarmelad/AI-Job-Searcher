@@ -14,4 +14,12 @@ export class DbController {
   async deleteVacancy (@Query("id") id: string) {
     await this.dbService.deleteVacancy(id)
   }
+
+  @Patch('/vacancy/updateStatus') 
+  async updateVacancyStatus (
+    @Query('id') id: string,
+    @Query('viewed') viewed: boolean,
+  ) {
+    await this.dbService.updateVacancyStatus(id, viewed)
+  }
 }

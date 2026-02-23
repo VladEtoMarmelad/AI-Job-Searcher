@@ -56,7 +56,8 @@ export class JobsService implements OnApplicationBootstrap {
       await this.db.saveVacancy({
         url,
         description: analysis?.reasoning ?? "",
-        score: analysis?.score ?? 0
+        score: analysis?.score ?? 0,
+        viewed: false
       })
 
       // Threshold is parameterized
