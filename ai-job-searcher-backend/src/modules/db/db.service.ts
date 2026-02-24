@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { MongoClient, Collection, Db, ObjectId, WithId } from 'mongodb';
-import { Vacancy } from "@sharedTypes/Vacancy"
+import { MongoClient, Collection, Db, ObjectId, OptionalId, Filter } from 'mongodb';
+import { Vacancy } from '@sharedTypes/Vacancy';
+import { VacancyDocument } from "../../types/VacancyDocument"
 
 @Injectable()
 export class DbService implements OnModuleInit, OnModuleDestroy {
@@ -24,36 +25,48 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
     await this.client.close();
   }
 
-  private get collection(): Collection<Vacancy> {
-    return this.db.collection<Vacancy>('vacancies');
+  /**
+   * The collection is typed with VacancyDocument to ensure _id is treated as an ObjectId.
+   */
+  private get collection(): Collection<VacancyDocument> {
+    return this.db.collection<VacancyDocument>('vacancies');
   }
 
-  // Check if a vacancy with the given URL already exists in the database
   async isVacancyExists(url: string): Promise<boolean> {
-    const count = await this.collection.countDocuments({ url }, { limit: 1 });
+    const count = await this.collection.countDocuments({ url } as Filter<VacancyDocument>, { limit: 1 });
     return count > 0;
   }
 
   async saveVacancy(vacancy: Vacancy) {
-    return await this.collection.insertOne(vacancy);
+    /**
+     * We cast the vacancy to unknown then to VacancyDocument to bypass the string/ObjectId mismatch.
+     * insertOne accepts OptionalId, so the absence of _id is handled automatically.
+     */
+    return await this.collection.insertOne(vacancy as unknown as OptionalId<VacancyDocument>);
   }
 
-  async getVacancies() {
-    const collection = this.db.collection<Vacancy>('vacancies');
-    return await collection.find({}).toArray();
+  async getVacancies(): Promise<Vacancy[]> {
+    /**
+     * When returning data, we cast the array back to the shared Vacancy interface.
+     * In JavaScript, ObjectId stringifies to its hex representation when sent over HTTP.
+     */
+    const documents = await this.collection.find({}).toArray();
+    return documents as unknown as Vacancy[];
   }
 
   async deleteVacancy(id: string) {
-    const collection = this.db.collection<WithId<Vacancy>>('vacancies');
-    await collection.deleteOne({ _id: new ObjectId(id) as any });
+    /**
+     * Now that the collection is typed with VacancyDocument, 
+     * it accepts ObjectId for the _id field without needing 'any'.
+     */
+    await this.collection.deleteOne({ _id: new ObjectId(id) });
   }
 
   async updateVacancyStatus(id: string, viewed: boolean) {
-    const collection = this.db.collection<WithId<Vacancy>>('vacancies');
     const isViewed = String(viewed) === 'true';
 
-    await collection.updateOne(
-      { _id: new ObjectId(id) as any },
+    await this.collection.updateOne(
+      { _id: new ObjectId(id) },
       { $set: { viewed: isViewed } }
     )
   }
