@@ -43,7 +43,7 @@ coverage/
 .env.production.local
 .env.local
 # added to not update example of .env.jobsearch 
-.env.jobsearch 
+.env.jobsearch
 
 # temp directory
 .temp/
