@@ -56,6 +56,7 @@ export class JobsService implements OnApplicationBootstrap {
       await this.db.saveVacancy({
         url,
         description: analysis?.reasoning ?? "",
+        domain: new URL(url).hostname,
         score: analysis?.score ?? 0,
         viewed: false
       })

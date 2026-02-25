@@ -6,16 +6,26 @@ interface VacancyListProps {
   filters: { score?: string; domain?: string; viewed?: string };
 }
 
-// Filters the list based on user criteria and renders the results grid.
+// Component responsible for filtering the vacancy list and rendering the layout grid.
 export const VacancyList = ({ vacancies, filters }: VacancyListProps) => {
+  /** Convert filter values to appropriate types for comparison */
   const minScore = parseFloat(filters.score || "0");
   const domainQuery = filters.domain?.toLowerCase() || "";
   const viewedFilter = filters.viewed;
 
+  /** 
+   * Filter logic: matches by minimum score, domain (searching in URL or domain field), 
+   * and the viewed/unviewed status.
+   */
   const filteredVacancies = vacancies.filter((vacancy) => {
     const matchesScore = vacancy.score >= minScore;
+    
+    /** 
+     * Type safety is maintained here because the Vacancy interface 
+     * now explicitly includes the optional domain property.
+     */
     const matchesDomain = domainQuery 
-      ? vacancy.url.toLowerCase().includes(domainQuery) || (vacancy as any).domain?.toLowerCase().includes(domainQuery)
+      ? vacancy.url.toLowerCase().includes(domainQuery) || vacancy.domain?.toLowerCase().includes(domainQuery)
       : true;
 
     const isViewed = !!vacancy.viewed;
@@ -28,6 +38,7 @@ export const VacancyList = ({ vacancies, filters }: VacancyListProps) => {
 
   return (
     <section className="flex-1">
+      {/* Header section showing results count and clear filters action */}
       <div className="mb-6 flex justify-between items-end border-b border-gray-800 pb-4">
         <p className="text-gray-400 text-sm">
           Found <span className="text-amber-500 font-bold text-lg leading-none">{filteredVacancies.length}</span> vacancies
@@ -39,6 +50,7 @@ export const VacancyList = ({ vacancies, filters }: VacancyListProps) => {
         )}
       </div>
 
+      {/* Empty state or Grid of vacancy cards */}
       {filteredVacancies.length === 0 ? (
         <div className="text-center py-20 bg-slate-900/50 rounded-xl border border-dashed border-gray-800">
           <p className="text-gray-500 text-lg italic">No vacancies match your filters...</p>
