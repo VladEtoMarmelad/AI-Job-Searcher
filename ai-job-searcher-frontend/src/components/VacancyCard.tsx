@@ -2,9 +2,7 @@ import { Vacancy } from "@sharedTypes/Vacancy";
 import { toggleVacancyViewedAction, deleteVacancyAction } from "@/actions/index";
 import { DeleteButton } from './DeleteButton';
 
-// Represents a single vacancy card with its status toggles and actions.
 export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
-  // Pre-bind server action to vacancy specific data
   const toggleViewedWithId = toggleVacancyViewedAction.bind(null, vacancy._id ?? "", !!vacancy.viewed);
 
   return (
@@ -41,13 +39,14 @@ export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
 
         <details className="group/desc mb-6 cursor-pointer">
           <summary className="text-gray-300 text-sm leading-relaxed list-none">
-            <p className="line-clamp-3 group-open/desc:hidden transition-colors group-hover:text-white">
+            <span className="block line-clamp-3 group-open/desc:hidden transition-colors group-hover:text-white">
               {vacancy.description}
-            </p>
+            </span>
             <span className="text-amber-500 text-xs font-semibold mt-2 inline-block group-open/desc:hidden">
               Read full description...
             </span>
           </summary>
+          {/* Keep description as p here as it is outside the summary */}
           <p className="text-gray-300 text-sm leading-relaxed pt-2 group-hover:text-white transition-colors">
             {vacancy.description}
           </p>
