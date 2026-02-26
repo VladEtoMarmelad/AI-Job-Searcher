@@ -13,9 +13,14 @@ export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
     >
       <div>
         <div className="flex justify-between items-start mb-4">
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-3 items-center">
             <span className="bg-amber-500/10 text-amber-500 text-xs font-bold px-2 py-1 rounded border border-amber-500/20">
               Score: {vacancy.score.toFixed(1)}
+            </span>
+            
+            {/* Source platform or website domain where the vacancy was found */}
+            <span className="text-gray-500 text-xs font-medium truncate max-w-[120px]">
+              {vacancy.domain}
             </span>
             
             <form action={toggleViewedWithId}>
