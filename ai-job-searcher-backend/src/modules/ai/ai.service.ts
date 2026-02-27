@@ -38,7 +38,8 @@ export class AiService {
       Format: 
       {
         "score": <number>,
-        "reasoning": "<string>"
+        "reasoning": "<string>",
+        "vacancyTitle": "<string>"
       }
     `;
 

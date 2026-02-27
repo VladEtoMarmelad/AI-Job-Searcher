@@ -42,6 +42,11 @@ export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
           <DeleteButton id={vacancy._id ?? ""} onDelete={deleteVacancyAction} />
         </div>
 
+        {/* Primary job title with line clamping to ensure visual consistency across the grid */}
+        <h3 className="text-xl font-bold text-white mb-2 line-clamp-2 group-hover:text-amber-400 transition-colors">
+          {vacancy.title}
+        </h3>
+
         <p className="text-gray-300 text-sm leading-relaxed pt-2 group-hover:text-white transition-colors">
           {vacancy.description}
         </p>

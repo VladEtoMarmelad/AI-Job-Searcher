@@ -1,4 +1,5 @@
 export interface AiJobAnalysis {
   score: number;
-  reasoning: string
+  reasoning: string;
+  vacancyTitle: string
 }
