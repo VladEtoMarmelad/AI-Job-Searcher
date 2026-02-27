@@ -11,7 +11,7 @@ export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
         vacancy.viewed ? 'opacity-50' : 'opacity-100'
       }`}
     >
-      <div>
+      <div className="mb-2">
         <div className="flex justify-between items-start mb-4">
           <div className="flex gap-3 items-center">
             <span className="bg-amber-500/10 text-amber-500 text-xs font-bold px-2 py-1 rounded border border-amber-500/20">
@@ -42,21 +42,9 @@ export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
           <DeleteButton id={vacancy._id ?? ""} onDelete={deleteVacancyAction} />
         </div>
 
-        <details className="group/desc mb-6 cursor-pointer">
-          <summary className="text-gray-300 text-sm leading-relaxed list-none">
-            <span className="block line-clamp-3 group-open/desc:hidden transition-colors group-hover:text-white">
-              {vacancy.description}
-            </span>
-            <span className="text-amber-500 text-xs font-semibold mt-2 inline-block group-open/desc:hidden">
-              Read full description...
-            </span>
-          </summary>
-          {/* Keep description as p here as it is outside the summary */}
-          <p className="text-gray-300 text-sm leading-relaxed pt-2 group-hover:text-white transition-colors">
-            {vacancy.description}
-          </p>
-          <span className="text-amber-500 text-xs font-semibold mt-2 inline-block">Show less</span>
-        </details>
+        <p className="text-gray-300 text-sm leading-relaxed pt-2 group-hover:text-white transition-colors">
+          {vacancy.description}
+        </p>
       </div>
 
       <a 
