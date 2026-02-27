@@ -13,8 +13,8 @@ export const getSiteConfigs = (keyword: string) => {
     },
     'djinni.co': {
       url: `https://djinni.co/jobs/?all_keywords=${encodeURIComponent(keyword)}`,
-      linkSelector: 'a.job-item__title-link',
-      nextBtn: '.pagination li:last-child a'
+      linkSelector: '.job-item a.text-reset', 
+      nextBtn: '.pagination .bi-chevron-right'
     }
   }
 
