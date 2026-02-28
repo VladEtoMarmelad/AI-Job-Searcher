@@ -2,7 +2,12 @@ import { Vacancy } from "@sharedTypes/Vacancy";
 import { toggleVacancyViewedAction, deleteVacancyAction } from "@/actions/index";
 import { DeleteButton } from './DeleteButton';
 
-export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
+interface VacancyCardProps {
+  vacancy: Vacancy;
+  showDescription: boolean
+}
+
+export const VacancyCard = ({ vacancy, showDescription }: VacancyCardProps) => {
   const toggleViewedWithId = toggleVacancyViewedAction.bind(null, vacancy._id ?? "", !!vacancy.viewed);
 
   return (
@@ -17,7 +22,7 @@ export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
             <span className="bg-amber-500/10 text-amber-500 text-xs font-bold px-2 py-1 rounded border border-amber-500/20">
               Score: {vacancy.score.toFixed(1)}
             </span>
-            
+
             {/* Source platform or website domain where the vacancy was found */}
             <span className="text-gray-500 text-xs font-medium truncate max-w-[120px]">
               {vacancy.domain}
@@ -47,16 +52,19 @@ export const VacancyCard = ({ vacancy }: {vacancy: Vacancy}) => {
           {vacancy.title}
         </h3>
 
-        <p className="text-gray-300 text-sm leading-relaxed pt-2 group-hover:text-white transition-colors">
-          {vacancy.description}
-        </p>
+        {/** Conditional rendering based on the parent's filter state */}
+        {showDescription && (
+          <p className="text-gray-300 text-sm leading-relaxed pt-2 group-hover:text-white transition-colors">
+            {vacancy.description}
+          </p>
+        )}
       </div>
 
       <a 
         href={vacancy.url} 
         target="_blank" 
         rel="noopener noreferrer"
-        className="inline-flex items-center justify-center w-full bg-transparent border border-amber-500 text-amber-500 hover:bg-amber-500 hover:text-black font-semibold py-2 px-4 rounded-lg transition-all duration-300"
+        className="inline-flex items-center justify-center w-full bg-transparent border border-amber-500 text-amber-500 hover:bg-amber-500 hover:text-black font-semibold py-2 px-4 rounded-lg transition-all duration-300 mt-4"
       >
         View Vacancy
         <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

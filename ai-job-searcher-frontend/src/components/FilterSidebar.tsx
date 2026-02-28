@@ -4,7 +4,8 @@ interface FilterSidebarProps {
   filters: { 
     score?: string; 
     domain?: string; 
-    viewed?: string 
+    viewed?: string;
+    showDesc?: string;
   };
 }
 
@@ -48,6 +49,25 @@ export const FilterSidebar = ({ filters }: FilterSidebarProps) => {
               <option value="viewed">Viewed Only</option>
             </select>
           </div>
+
+          {/** 
+           * Toggle for job descriptions. 
+           * Using a checkbox with value="true" adds ?showDesc=true to the URL when checked. 
+           */}
+          <div className="flex items-center gap-2 py-2">
+            <input 
+              type="checkbox" 
+              name="showDesc" 
+              id="showDesc"
+              value="true"
+              defaultChecked={filters.showDesc === 'true'}
+              className="w-4 h-4 rounded border-gray-700 bg-slate-950 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900"
+            />
+            <label htmlFor="showDesc" className="text-xs text-gray-400 cursor-pointer select-none">
+              Show Descriptions
+            </label>
+          </div>
+
           <button 
             type="submit"
             className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/50 font-bold py-2 rounded-lg transition-all text-sm"

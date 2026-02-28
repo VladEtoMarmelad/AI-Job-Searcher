@@ -10,7 +10,8 @@ import axios from 'axios';
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ score?: string; domain?: string; viewed?: string }>;
+  /** The showDesc parameter determines if job descriptions are rendered in the cards */
+  searchParams: Promise<{ score?: string; domain?: string; viewed?: string; showDesc?: string }>;
 }) {
   const filters = await searchParams;
   let vacancies: Vacancy[] = [];
@@ -38,7 +39,11 @@ export default async function HomePage({
               {error}
             </div>
           ) : (
-            <VacancyList vacancies={vacancies} filters={filters} />
+            <VacancyList 
+              vacancies={vacancies} 
+              filters={filters} 
+              showDescription={filters.showDesc === 'true'} 
+            />
           )}
         </div>
       </div>

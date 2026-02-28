@@ -3,12 +3,11 @@ import { VacancyCard } from "./VacancyCard";
 
 interface VacancyListProps {
   vacancies: Vacancy[];
-  filters: { score?: string; domain?: string; viewed?: string };
+  filters: { score?: string; domain?: string; viewed?: string; showDesc?: string };
+  showDescription: boolean;
 }
 
-// Component responsible for filtering the vacancy list and rendering the layout grid.
-export const VacancyList = ({ vacancies, filters }: VacancyListProps) => {
-  /** Convert filter values to appropriate types for comparison */
+export const VacancyList = ({ vacancies, filters, showDescription }: VacancyListProps) => {
   const minScore = parseFloat(filters.score || "0");
   const domainQuery = filters.domain?.toLowerCase() || "";
   const viewedFilter = filters.viewed;
@@ -43,7 +42,7 @@ export const VacancyList = ({ vacancies, filters }: VacancyListProps) => {
         <p className="text-gray-400 text-sm">
           Found <span className="text-amber-500 font-bold text-lg leading-none">{filteredVacancies.length}</span> vacancies
         </p>
-        {(filters.score || filters.domain || filters.viewed) && (
+        {(filters.score || filters.domain || filters.viewed || filters.showDesc) && (
           <a href="/" className="text-xs text-gray-500 hover:text-amber-500 transition-colors uppercase tracking-widest font-bold">
             ✕ Clear Filters
           </a>
@@ -59,7 +58,11 @@ export const VacancyList = ({ vacancies, filters }: VacancyListProps) => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredVacancies.map((vacancy) => (
-            <VacancyCard key={vacancy._id} vacancy={vacancy} />
+            <VacancyCard 
+              key={vacancy._id} 
+              vacancy={vacancy} 
+              showDescription={showDescription} 
+            />
           ))}
         </div>
       )}
