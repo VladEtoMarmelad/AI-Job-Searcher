@@ -1,19 +1,34 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AiJobAnalysis } from 'src/types/AiJobAnalysis';
+import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { Transporter } from 'nodemailer';
 
 @Injectable()
-export class NotifierService {
+export class NotifierService implements OnModuleInit {
   private readonly logger = new Logger(NotifierService.name);
+  private transporter: Transporter;
+  
+  private gmailUser: string|undefined;
+  private recipientEmail: string|undefined;
 
-  // Create transporter with Gmail settings
-  private transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER, // Your gmail address
-      pass: process.env.GMAIL_PASS, // Your gmail app password
-    },
-  });
+  constructor(private configService: ConfigService) {}
+
+  onModuleInit() {
+    // Configuration parameters are initialized via ConfigService to support environment-based settings
+    this.gmailUser = this.configService.get<string>('GMAIL_USER');
+    this.recipientEmail = this.configService.get<string>('RECIPIENT_EMAIL');
+    const gmailPass = this.configService.get<string>('GMAIL_PASS');
+
+    // Create transporter with Gmail settings once the configuration is loaded
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: this.gmailUser, // Your gmail address
+        pass: gmailPass, // Your gmail app password
+      },
+    });
+  }
 
   async sendAlert(jobUrl: string, analysis: AiJobAnalysis) {
     const message = `
@@ -23,10 +38,10 @@ export class NotifierService {
       **Link:** ${jobUrl}
     `;
 
-    // Send to gmail
+    // Email options utilize the pre-configured environment variables
     const mailOptions = {
-      from: process.env.GMAIL_USER,
-      to: process.env.RECIPIENT_EMAIL, // Receiver's email address
+      from: this.gmailUser,
+      to: this.recipientEmail, // Receiver's email address
       subject: 'New Job Vacancy Found',
       text: message,
     };

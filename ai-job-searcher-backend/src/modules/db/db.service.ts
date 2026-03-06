@@ -2,22 +2,30 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { MongoClient, Collection, Db, ObjectId, OptionalId, Filter } from 'mongodb';
 import { Vacancy } from '@sharedTypes/Vacancy';
 import { VacancyDocument } from "../../types/VacancyDocument"
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class DbService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DbService.name);
 
-  private readonly uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@main-vacancy-cluster.krct5sv.mongodb.net/`
+  private uri: string;
   private client: MongoClient;
   private db: Db;
 
-  constructor() {
-    this.client = new MongoClient(this.uri);
-  }
+  constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
+    const dbUser = this.configService.get<string>('DB_USER');
+    const dbPassword = this.configService.get<string>('DB_PASSWORD');
+    const dbName = this.configService.get<string>('DB_NAME');
+
+    this.uri = `mongodb+srv://${dbUser}:${dbPassword}@main-vacancy-cluster.krct5sv.mongodb.net/`
+
+    this.client = new MongoClient(this.uri);
     await this.client.connect();
-    this.db = this.client.db(process.env.DB_NAME); 
+    
+    this.db = this.client.db(dbName); 
+
     this.logger.log("Connected to MongoDB Atlas")
   }
 

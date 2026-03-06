@@ -1,14 +1,19 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { chromium, Browser } from 'playwright';
+import { ConfigService } from '@nestjs/config';
+import { chromium, Browser, Page } from 'playwright';
 
 @Injectable()
 export class ParserService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ParserService.name);
-  private readonly maxTextLength = parseInt(process.env.MAX_PARSER_LENGTH || '5000', 10);
+  private maxTextLength: number;
   private browser: Browser;
+
+  constructor(private configService: ConfigService) {}
 
   // Initialize the browser when the module starts
   async onModuleInit() {
+    this.maxTextLength = parseInt(this.configService.get<string>('MAX_PARSER_LENGTH') || '5000', 10); 
+
     this.browser = await chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -22,8 +27,11 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async extractJobDescription(url: string): Promise<string> {
-    // Create a new browser context with a real-looking User-Agent
+  /**
+   * Internal helper to handle browser context, page creation, navigation and common waits.
+   * This prevents code duplication and ensures resources are always cleaned up.
+   */
+  private async withPage<T>(url: string, callback: (page: Page) => Promise<T>): Promise<T | string> {
     const context = await this.browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
@@ -45,6 +53,19 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
         await page.waitForSelector('.l-vacancy', { timeout: 5000 }).catch(() => null);
       }
 
+      return await callback(page);
+    } catch (error) {
+      this.logger.error(`Playwright failed to process ${url}: ${error.message}`);
+      return '';
+    } finally {
+      // Always close the page and context to free up RAM
+      await page.close();
+      await context.close();
+    }
+  }
+
+  async extractJobDescription(url: string): Promise<string> {
+    const result = await this.withPage(url, async (page) => {
       // Extract text content and remove unnecessary elements directly in the browser
       const text = await page.evaluate(() => {
         // Elements to remove
@@ -63,13 +84,17 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
         .trim();
 
       return cleanedText.substring(0, this.maxTextLength);
-    } catch (error) {
-      this.logger.error(`Playwright failed to parse ${url}: ${error.message}`);
-      return '';
-    } finally {
-      // Always close the page and context to free up RAM
-      await page.close();
-      await context.close();
-    }
+    });
+
+    return result as string;
+  }
+
+  async extractJobHTML(url: string): Promise<string> {
+    const result = await this.withPage(url, async (page) => {
+      // Returns the full HTML content of the page, including the doctype
+      return await page.content();
+    });
+
+    return result as string;
   }
 }

@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { chromium } from 'playwright-extra';
-import { getSiteConfigs } from 'src/utils/getSiteConfigs';
+import { SiteConfig } from 'src/types/SiteConfig';
+import { ParserService } from '../parser/parser.service';
+import { AiService } from '../ai/ai.service';
+import { ConfigService } from '@nestjs/config';
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 chromium.use(StealthPlugin());
@@ -9,9 +12,73 @@ chromium.use(StealthPlugin());
 export class FetcherService {
   private readonly logger = new Logger(FetcherService.name);
 
-  private readonly userAgent = process.env.BROWSER_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
-  private readonly maxSearchPages = parseInt(process.env.MAX_SEARCH_PAGES || '3', 10);
-  private readonly targets = (process.env.JOB_SITES || 'robota.ua,dou.ua,djinni.co').split(',');
+  private userAgent: string;
+  private maxSearchPages: number;
+  private targets: string[];
+  private delay: number;
+
+  constructor(
+    private readonly parser: ParserService,
+    private readonly ai: AiService,
+    private configService: ConfigService
+  ) {}
+
+  onModuleInit() {
+    this.userAgent = this.configService.get<string>('BROWSER_USER_AGENT') || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+    this.maxSearchPages = parseInt(this.configService.get<string>('MAX_SEARCH_PAGES') || '3', 10);
+    this.targets = (this.configService.get<string>('JOB_SITES') || 'robota.ua,dou.ua,djinni.co').split(',');
+    this.delay = parseInt(this.configService.get<string>('REQUEST_DELAY_MS') || '2000', 10);
+  }
+
+  async getSiteConfigs(keyword: string): Promise<Record<string, SiteConfig>> {
+    const siteConfigs: Record<string, SiteConfig> = {
+        'robota.ua': {
+          url: `https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine`,
+          linkSelector: 'alliance-jobseeker-desktop-vacancies-list alliance-vacancy-card-desktop a',
+        },
+        'dou.ua': {
+          url: `https://jobs.dou.ua/vacancies/?search=${encodeURIComponent(keyword)}`,
+          linkSelector: 'a.vt',
+          nextBtn: '.more-btn a'
+        },
+        'djinni.co': {
+          url: `https://djinni.co/jobs/?all_keywords=${encodeURIComponent(keyword)}`,
+          //linkSelector: '.job-item a.job_item__header-link', 
+          linkSelector: '',
+          nextBtn: '.pagination li:last-child a'
+        }
+      }
+    
+      for (const site in siteConfigs) {
+        if (Object.prototype.hasOwnProperty.call(siteConfigs, site)) {
+          const config = siteConfigs[site];
+    
+          try {
+            // Fetch the raw HTML content from the specified URL to identify the current page structure
+            const jobHTML = await this.parser.extractJobHTML(config.url);
+            
+            // Use AI processing to dynamically determine the most accurate selectors for job links and navigation
+            const jobSelectors = await this.ai.analyzeJobHTML(jobHTML);
+    
+            // Update the configuration object with the values discovered by the AI
+            if (jobSelectors) {
+              config.linkSelector = jobSelectors.linkSelector || config.linkSelector;
+              config.nextBtn = jobSelectors.nextBtn || config.nextBtn;
+            }
+    
+            console.log(`${site} использует кнопку: ${config.nextBtn}`);
+          } catch (error) {
+            // Ensure the loop continues to the next site even if one request fails
+            console.error(`Error processing ${site}:`, error);
+          }
+    
+          await new Promise(res => setTimeout(res, this.delay));
+        }
+      }
+    
+      // Return the modified object containing updated selectors for all sites
+      return siteConfigs;
+  }
 
   async searchJobs(keyword: string): Promise<string[]> {
     const browser = await chromium.launch({ 
@@ -26,7 +93,7 @@ export class FetcherService {
 
     const page = await context.newPage();
     const allLinks = new Set<string>();
-    const siteConfigs = getSiteConfigs(keyword);
+    const siteConfigs = await this.getSiteConfigs(keyword);
 
     try {
       for (const domain of this.targets) {
