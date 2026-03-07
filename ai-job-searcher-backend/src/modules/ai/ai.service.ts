@@ -25,7 +25,6 @@ export class AiService implements OnModuleInit {
   }
 
   async analyzeJob(resume: string, jobDescription: string, filters: string): Promise<AiJobAnalysis|undefined> {
-    
     // System prompt defines the persona, rules, and output format
     const systemPrompt = `
       Role: You are an objective Technical Recruitment Evaluator. Your task is to accurately match candidate seniority and skills to the Job Description.
@@ -92,7 +91,6 @@ export class AiService implements OnModuleInit {
   }
 
   async analyzeJobHTML(html: string) {
-        
     /**
      * System prompt for HTML analysis.
      * Instructs the AI to act as a Web Scraping Expert to identify CSS selectors.
@@ -122,7 +120,7 @@ export class AiService implements OnModuleInit {
       Analyze the following HTML snippet and extract the required CSS selectors:
       ---
       HTML: 
-      ${html}
+      ${html.slice(-15000)}
       ---
     `;
 
@@ -140,7 +138,8 @@ export class AiService implements OnModuleInit {
         ],
         model: this.modelName, 
         temperature: 0.1, // Low temperature for consistent and precise selector generation
-        max_tokens: 1024,
+        //max_tokens: 1024,
+        max_tokens: 8192,
         top_p: 1,
         stream: false,
         stop: null

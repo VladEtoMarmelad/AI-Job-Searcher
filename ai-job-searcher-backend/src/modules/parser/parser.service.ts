@@ -12,7 +12,7 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
 
   // Initialize the browser when the module starts
   async onModuleInit() {
-    this.maxTextLength = parseInt(this.configService.get<string>('MAX_PARSER_LENGTH') || '5000', 10); 
+    this.maxTextLength = parseInt(this.configService.get<string>('MAX_PARSER_LENGTH') || '5000', 10);
 
     this.browser = await chromium.launch({
       headless: true,
@@ -40,9 +40,9 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
 
     try {
       // Navigate to the URL and wait until the network is idle (important for SPA)
-      await page.goto(url, { 
-        waitUntil: 'networkidle', 
-        timeout: 30000 
+      await page.goto(url, {
+        waitUntil: 'networkidle',
+        timeout: 30000
       });
 
       // Wait for specific selectors depending on the domain to ensure content is loaded
@@ -91,8 +91,70 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
 
   async extractJobHTML(url: string): Promise<string> {
     const result = await this.withPage(url, async (page) => {
-      // Returns the full HTML content of the page, including the doctype
-      return await page.content();
+      // Execute a script to transform the DOM into a minimal skeleton
+      await page.evaluate(() => {
+        // 1. Remove obvious "garbage" tags
+        const unwantedTags = ['script', 'style', 'svg', 'path', 'img', 'noscript', 'iframe', 'header', 'footer', 'app-shell-header', 'app-mobile-navigation-bar'];
+        unwantedTags.forEach(tag => document.querySelectorAll(tag).forEach(el => el.remove()));
+
+        // 2. Clear all attributes except essential ones (id, class, href)
+        // This removes all Angular-specific attributes like ng-tns, ng-star-inserted, etc.
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach(el => {
+          const attributes = el.attributes;
+          for (let i = attributes.length - 1; i >= 0; i--) {
+            const attrName = attributes[i].name;
+            if (!['id', 'class', 'href'].includes(attrName)) {
+              el.removeAttribute(attrName);
+            }
+          }
+
+          // 3. Remove text nodes that are too long (keep only short labels like "Next", "2", or job titles)
+          // This drastically reduces token count while preserving link text for AI analysis.
+          if (el.childNodes.length > 0) {
+            el.childNodes.forEach(node => {
+              if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+                if (node.textContent.trim().length > 30) {
+                  node.textContent = '...';
+                }
+              }
+            });
+          }
+        });
+
+        // 4. Remove elements that don't have class/id AND aren't links (useless wrappers)
+        document.querySelectorAll('div, span, section, article').forEach(el => {
+          if (!el.className && !el.id && el.tagName !== 'A') {
+            // Unwrapping: move children to parent then remove the empty wrapper
+            while (el.firstChild) el.parentNode?.insertBefore(el.firstChild, el);
+            el.remove();
+          }
+        });
+
+        // 5. Limit repetitive structures (vacancy cards)
+        // We find all links, and if we see a pattern of similar links, we keep only first few.
+        // For Robota.ua / Dou.ua / LinkedIn this is usually enough to find the selector.
+        const links = Array.from(document.querySelectorAll('a'));
+        if (links.length > 15) {
+          // Keep first 10 links (usually jobs) and last 10 (usually pagination)
+          const linksToRemove = links.slice(10, -10);
+          linksToRemove.forEach(link => {
+            // Remove the parent container of the link to clean up the card
+            const container = link.closest('alliance-vacancy-card-desktop') || link.parentElement;
+            container?.remove();
+          });
+        }
+      });
+
+      // Extract the cleaned HTML
+      let html = await page.content();
+
+      // 6. Final regex cleanup
+      return html
+        .replace(/<!---->/g, '') // Remove Angular comments
+        .replace(/\s\s+/g, ' ') // Collapse multiple spaces
+        .replace(/>\s+</g, '><') // Remove spaces between tags
+        .trim();
     });
 
     return result as string;

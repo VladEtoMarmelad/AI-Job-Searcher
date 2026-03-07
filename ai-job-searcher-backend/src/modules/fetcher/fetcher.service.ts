@@ -32,61 +32,58 @@ export class FetcherService {
 
   async getSiteConfigs(keyword: string): Promise<Record<string, SiteConfig>> {
     const siteConfigs: Record<string, SiteConfig> = {
-        'robota.ua': {
-          url: `https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine`,
-          linkSelector: 'alliance-jobseeker-desktop-vacancies-list alliance-vacancy-card-desktop a',
-        },
-        'dou.ua': {
-          url: `https://jobs.dou.ua/vacancies/?search=${encodeURIComponent(keyword)}`,
-          linkSelector: 'a.vt',
-          nextBtn: '.more-btn a'
-        },
-        'djinni.co': {
-          url: `https://djinni.co/jobs/?all_keywords=${encodeURIComponent(keyword)}`,
-          //linkSelector: '.job-item a.job_item__header-link', 
-          linkSelector: '',
-          nextBtn: '.pagination li:last-child a'
-        }
+      'robota.ua': {
+        url: `https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine`,
+        linkSelector: 'alliance-jobseeker-desktop-vacancies-list alliance-vacancy-card-desktop a',
+      },
+      'dou.ua': {
+        url: `https://jobs.dou.ua/vacancies/?search=${encodeURIComponent(keyword)}`,
+        linkSelector: 'a.vt',
+        nextBtn: '.more-btn a'
+      },
+      'djinni.co': {
+        url: `https://djinni.co/jobs/?all_keywords=${encodeURIComponent(keyword)}`,
+        linkSelector: '.job-item a.job_item__header-link',
+        nextBtn: '.pagination li:last-child a'
       }
-    
-      for (const site in siteConfigs) {
-        if (Object.prototype.hasOwnProperty.call(siteConfigs, site)) {
-          const config = siteConfigs[site];
-    
-          try {
-            // Fetch the raw HTML content from the specified URL to identify the current page structure
-            const jobHTML = await this.parser.extractJobHTML(config.url);
-            
-            // Use AI processing to dynamically determine the most accurate selectors for job links and navigation
-            const jobSelectors = await this.ai.analyzeJobHTML(jobHTML);
-    
-            // Update the configuration object with the values discovered by the AI
-            if (jobSelectors) {
-              config.linkSelector = jobSelectors.linkSelector || config.linkSelector;
-              config.nextBtn = jobSelectors.nextBtn || config.nextBtn;
-            }
-    
-            console.log(`${site} использует кнопку: ${config.nextBtn}`);
-          } catch (error) {
-            // Ensure the loop continues to the next site even if one request fails
-            console.error(`Error processing ${site}:`, error);
+    }
+
+    for (const site in siteConfigs) {
+      if (Object.prototype.hasOwnProperty.call(siteConfigs, site) && this.targets.includes(site)) {
+        const config = siteConfigs[site];
+
+        try {
+          // Fetch the raw HTML content from the specified URL to identify the current page structure
+          const jobHTML = await this.parser.extractJobHTML(config.url);
+
+          // Use AI processing to dynamically determine the most accurate selectors for job links and navigation
+          const jobSelectors = await this.ai.analyzeJobHTML(jobHTML);
+
+          // Update the configuration object with the values discovered by the AI
+          if (jobSelectors && (jobSelectors.linkSelector !== "" && jobSelectors.nextBtn !== "")) {
+            config.linkSelector = jobSelectors.linkSelector || config.linkSelector;
+            config.nextBtn = jobSelectors.nextBtn || config.nextBtn;
           }
-    
-          await new Promise(res => setTimeout(res, this.delay));
+        } catch (error) {
+          // Ensure the loop continues to the next site even if one request fails
+          console.error(`Error processing ${site}:`, error);
         }
+
+        await new Promise(res => setTimeout(res, this.delay));
       }
-    
-      // Return the modified object containing updated selectors for all sites
-      return siteConfigs;
+    }
+
+    // Return the modified object containing updated selectors for all sites
+    return siteConfigs;
   }
 
   async searchJobs(keyword: string): Promise<string[]> {
-    const browser = await chromium.launch({ 
+    const browser = await chromium.launch({
       headless: true,
-      args: ['--disable-blink-features=AutomationControlled'] 
+      args: ['--disable-blink-features=AutomationControlled']
     });
-    
-    const context = await browser.newContext({ 
+
+    const context = await browser.newContext({
       userAgent: this.userAgent,
       viewport: { width: 1280, height: 800 }
     });
@@ -102,10 +99,10 @@ export class FetcherService {
 
         try {
           this.logger.log(`Navigating to ${domain}...`);
-          
+
           // 1. Use 'domcontentloaded' instead of 'networkidle' for faster loading
           await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-          
+
           for (let i = 1; i <= this.maxSearchPages; i++) {
             // 2. Wait for a specific element to appear instead of waiting for the network to go idle
             try {
@@ -116,12 +113,12 @@ export class FetcherService {
             }
 
             // Scroll down to trigger lazy loading
-            for (let i=0; i<=50; i++) {
+            for (let i = 0; i <= 50; i++) {
               await page.evaluate(() => window.scrollBy(0, 100));
             }
             await page.waitForTimeout(1000); // Allow time for rendering
 
-            const links = await page.$$eval(config.linkSelector, (anchors) => 
+            const links = await page.$$eval(config.linkSelector, (anchors) =>
               anchors.map(a => (a as HTMLAnchorElement).href)
             );
 
@@ -139,7 +136,7 @@ export class FetcherService {
                 const isVisible = await nextBtn.isVisible();
                 if (isVisible && i < this.maxSearchPages) {
                   await Promise.all([
-                    page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+                    page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => { }),
                     nextBtn.click()
                   ]);
                   continue;
@@ -149,7 +146,7 @@ export class FetcherService {
               await page.goto(`https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine/params;page=${i}`);
               continue
             }
-            break; 
+            break;
           }
         } catch (domainError) {
           this.logger.error(`Error processing ${domain}: ${domainError.message}`);
