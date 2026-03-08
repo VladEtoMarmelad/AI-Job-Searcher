@@ -4,6 +4,7 @@ import { SiteConfig } from 'src/types/SiteConfig';
 import { ParserService } from '../parser/parser.service';
 import { AiService } from '../ai/ai.service';
 import { ConfigService } from '@nestjs/config';
+import { getBaseSiteConfigs } from 'src/utils/getBaseSiteConfigs';
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 chromium.use(StealthPlugin());
@@ -31,22 +32,7 @@ export class FetcherService {
   }
 
   async getSiteConfigs(keyword: string): Promise<Record<string, SiteConfig>> {
-    const siteConfigs: Record<string, SiteConfig> = {
-      'robota.ua': {
-        url: `https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine`,
-        linkSelector: 'alliance-jobseeker-desktop-vacancies-list alliance-vacancy-card-desktop a',
-      },
-      'dou.ua': {
-        url: `https://jobs.dou.ua/vacancies/?search=${encodeURIComponent(keyword)}`,
-        linkSelector: 'a.vt',
-        nextBtn: '.more-btn a'
-      },
-      'djinni.co': {
-        url: `https://djinni.co/jobs/?all_keywords=${encodeURIComponent(keyword)}`,
-        linkSelector: '.job-item a.job_item__header-link',
-        nextBtn: '.pagination li:last-child a'
-      }
-    }
+    const siteConfigs = getBaseSiteConfigs(keyword);
 
     for (const site in siteConfigs) {
       if (Object.prototype.hasOwnProperty.call(siteConfigs, site) && this.targets.includes(site)) {
