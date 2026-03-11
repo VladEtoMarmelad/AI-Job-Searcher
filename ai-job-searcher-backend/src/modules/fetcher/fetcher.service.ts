@@ -5,6 +5,9 @@ import { ParserService } from '../parser/parser.service';
 import { AiService } from '../ai/ai.service';
 import { ConfigService } from '@nestjs/config';
 import { getBaseSiteConfigs } from 'src/utils/getBaseSiteConfigs';
+import { StorageService } from '../storage/storage.service'; // Added
+import { JobSelectors } from 'src/types/JobSelectors';
+
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 chromium.use(StealthPlugin());
@@ -21,7 +24,8 @@ export class FetcherService {
   constructor(
     private readonly parser: ParserService,
     private readonly ai: AiService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private storageService: StorageService // Added
   ) {}
 
   onModuleInit() {
@@ -31,35 +35,83 @@ export class FetcherService {
     this.delay = parseInt(this.configService.get<string>('REQUEST_DELAY_MS') || '2000', 10);
   }
 
+  /**
+   * Validates if the provided selectors actually work on the target page.
+   * This prevents using AI-generated or outdated cached selectors that don't find any data.
+   */
+  private async validateSelectors(url: string, selectors: JobSelectors): Promise<boolean> {
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ userAgent: this.userAgent });
+    const page = await context.newPage();
+
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // We check if at least one element matches the job link selector
+      const element = await page.waitForSelector(selectors.linkSelector, { timeout: 8000 });
+      return !!element;
+    } catch (error) {
+      return false;
+    } finally {
+      await browser.close();
+    }
+  }
+
   async getSiteConfigs(keyword: string): Promise<Record<string, SiteConfig>> {
     const siteConfigs = getBaseSiteConfigs(keyword);
+    const storedSelectors = await this.storageService.getAllSelectors();
 
     for (const site in siteConfigs) {
       if (Object.prototype.hasOwnProperty.call(siteConfigs, site) && this.targets.includes(site)) {
         const config = siteConfigs[site];
+        let isValid = false;
 
-        try {
-          // Fetch the raw HTML content from the specified URL to identify the current page structure
-          const jobHTML = await this.parser.extractJobHTML(config.url);
+        // 1. Try to use selectors from JSON storage first
+        if (storedSelectors[site]) {
+          this.logger.log(`Testing stored selectors for ${site}...`);
+          isValid = await this.validateSelectors(config.url, storedSelectors[site]);
 
-          // Use AI processing to dynamically determine the most accurate selectors for job links and navigation
-          const jobSelectors = await this.ai.analyzeJobHTML(jobHTML);
-
-          // Update the configuration object with the values discovered by the AI
-          if (jobSelectors && (jobSelectors.linkSelector !== "" && jobSelectors.nextBtn !== "")) {
-            config.linkSelector = jobSelectors.linkSelector || config.linkSelector;
-            config.nextBtn = jobSelectors.nextBtn || config.nextBtn;
+          if (isValid) {
+            this.logger.log(`Stored selectors for ${site} are valid.`);
+            config.linkSelector = storedSelectors[site].linkSelector;
+            config.nextBtn = storedSelectors[site].nextBtn || config.nextBtn;
+          } else {
+            // If stored selectors fail, clear them to trigger re-discovery
+            await this.storageService.clearSelectors(site);
           }
-        } catch (error) {
-          // Ensure the loop continues to the next site even if one request fails
-          console.error(`Error processing ${site}:`, error);
+        }
+
+        // 2. If stored selectors don't exist or are invalid, use AI
+        if (!isValid) {
+          try {
+            this.logger.log(`Identifying new selectors for ${site} via AI...`);
+            const jobHTML = await this.parser.extractJobHTML(config.url);
+            const aiSelectors = await this.ai.analyzeJobHTML(jobHTML);
+            console.log("aiSelectors: ", aiSelectors)
+
+            if (aiSelectors && aiSelectors.linkSelector !== "") {
+              // Validate AI-generated selectors before applying and saving
+              const isAiValid = await this.validateSelectors(config.url, aiSelectors);
+              
+              if (isAiValid) {
+                config.linkSelector = aiSelectors.linkSelector;
+                config.nextBtn = aiSelectors.nextBtn || config.nextBtn;
+                await this.storageService.saveSelectors(site, {
+                  linkSelector: config.linkSelector,
+                  nextBtn: config.nextBtn
+                });
+              } else {
+                this.logger.warn(`AI suggested invalid selectors for ${site}. Falling back to hardcoded defaults.`);
+              }
+            }
+          } catch (error) {
+            console.error(`Error processing ${site}:`, error);
+          }
         }
 
         await new Promise(res => setTimeout(res, this.delay));
       }
     }
 
-    // Return the modified object containing updated selectors for all sites
     return siteConfigs;
   }
 
@@ -86,11 +138,9 @@ export class FetcherService {
         try {
           this.logger.log(`Navigating to ${domain}...`);
 
-          // 1. Use 'domcontentloaded' instead of 'networkidle' for faster loading
           await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
           for (let i = 1; i <= this.maxSearchPages; i++) {
-            // 2. Wait for a specific element to appear instead of waiting for the network to go idle
             try {
               await page.waitForSelector(config.linkSelector, { timeout: 10000 });
             } catch (e) {
@@ -98,11 +148,10 @@ export class FetcherService {
               break;
             }
 
-            // Scroll down to trigger lazy loading
             for (let i = 0; i <= 50; i++) {
               await page.evaluate(() => window.scrollBy(0, 100));
             }
-            await page.waitForTimeout(1000); // Allow time for rendering
+            await page.waitForTimeout(1000); 
 
             const links = await page.$$eval(config.linkSelector, (anchors) =>
               anchors.map(a => (a as HTMLAnchorElement).href)
@@ -115,7 +164,6 @@ export class FetcherService {
               if (clean.includes(domain)) allLinks.add(clean);
             });
 
-            // Pagination logic
             if (config.nextBtn) {
               const nextBtn = await page.$(config.nextBtn);
               if (nextBtn) {
@@ -129,14 +177,14 @@ export class FetcherService {
                 }
               }
             } else {
-              await page.goto(`https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine/params;page=${i}`);
+              // Fallback pagination for specific hardcoded logic
+              await page.goto(`https://robota.ua/zapros/${encodeURIComponent(keyword)}/ukraine/params;page=${i + 1}`);
               continue
             }
             break;
           }
         } catch (domainError) {
           this.logger.error(`Error processing ${domain}: ${domainError.message}`);
-          // Proceed to the next domain if the current one fails
         }
       }
     } finally {

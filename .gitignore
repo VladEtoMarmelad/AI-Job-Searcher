@@ -45,6 +45,9 @@ coverage/
 # added to not update example of .env.jobsearch 
 .env.jobsearch
 
+# stored job selectors 
+stored_selectors.json
+
 # temp directory
 .temp/
 .tmp/
