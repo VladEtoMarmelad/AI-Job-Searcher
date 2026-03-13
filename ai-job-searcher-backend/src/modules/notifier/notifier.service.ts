@@ -1,8 +1,9 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AiJobAnalysis } from 'src/types/AiJobAnalysis';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { JobSelectors } from 'src/types/JobSelectors';
 import { Transporter } from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class NotifierService implements OnModuleInit {
@@ -53,6 +54,37 @@ export class NotifierService implements OnModuleInit {
     } catch (error) {
       // Error handling
       this.logger.error('Failed to send email alert:', error);
+    }
+  }
+
+  /**
+   * Notifies the administrator when hardcoded selectors for a specific site become obsolete.
+   * This allows for manual intervention or verification of the AI's fallback performance.
+   */
+  async sendHardcodedSelectorFailureAlert(site: string, url: string, failedSelectors: JobSelectors) {
+    const message = `
+      CRITICAL: Hardcoded selectors for ${site} have failed.
+      
+      Domain: ${site}
+      Target URL: ${url}
+      Failed linkSelector: ${failedSelectors.linkSelector}
+      ${failedSelectors.nextBtn ? `Failed nextBtn: ${failedSelectors.nextBtn}` : ''}
+      
+      System has automatically switched to AI discovery and local storage verification.
+    `;
+
+    const mailOptions = {
+      from: this.gmailUser,
+      to: this.recipientEmail,
+      subject: `Selector Failure Alert: ${site}`,
+      text: message,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      this.logger.warn(`Selector failure alert for ${site} sent to administrator.`);
+    } catch (error) {
+      this.logger.error(`Failed to send selector failure alert for ${site}:`, error);
     }
   }
 }

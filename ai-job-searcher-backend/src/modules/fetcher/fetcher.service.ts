@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { getBaseSiteConfigs } from 'src/utils/getBaseSiteConfigs';
 import { StorageService } from '../storage/storage.service';
 import { JobSelectors } from 'src/types/JobSelectors';
+import { NotifierService } from '../notifier/notifier.service';
 
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
@@ -20,12 +21,14 @@ export class FetcherService {
   private maxSearchPages: number;
   private targets: string[];
   private delay: number;
+  private notifyOnHardcodedSelectorsFail: boolean;
 
   constructor(
     private readonly parser: ParserService,
     private readonly ai: AiService,
     private configService: ConfigService,
-    private storageService: StorageService 
+    private storageService: StorageService,
+    private notifierService: NotifierService
   ) {}
 
   onModuleInit() {
@@ -33,6 +36,7 @@ export class FetcherService {
     this.maxSearchPages = parseInt(this.configService.get<string>('MAX_SEARCH_PAGES') || '3', 10);
     this.targets = (this.configService.get<string>('JOB_SITES') || 'robota.ua,dou.ua,djinni.co').split(',');
     this.delay = parseInt(this.configService.get<string>('REQUEST_DELAY_MS') || '2000', 10);
+    this.notifyOnHardcodedSelectorsFail = this.configService.get<string>('NOTIFY_ON_HARDCODED_SELECTORS_FAIL') === "true" ? true : false;
   }
 
   /**
@@ -71,10 +75,18 @@ export class FetcherService {
           linkSelector: config.linkSelector,
           nextBtn: config.nextBtn
         });
-        //isValid=true
 
         if (isValid) {
           this.logger.log(`Hardcoded selectors for ${site} are valid. Skipping storage/AI.`);
+        } else {
+          this.logger.log('Hardcoded failed');
+          // Sending notify about fail of hardcoded selectors if enabled
+          if (this.notifyOnHardcodedSelectorsFail) {
+            this.notifierService.sendHardcodedSelectorFailureAlert(site, config.url, {
+              linkSelector: config.linkSelector, 
+              nextBtn: config.nextBtn
+            });
+          }
         }
 
         // 2. Try to use selectors from JSON storage if hardcoded failed
