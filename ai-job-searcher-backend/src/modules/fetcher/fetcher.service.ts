@@ -5,7 +5,7 @@ import { ParserService } from '../parser/parser.service';
 import { AiService } from '../ai/ai.service';
 import { ConfigService } from '@nestjs/config';
 import { getBaseSiteConfigs } from 'src/utils/getBaseSiteConfigs';
-import { StorageService } from '../storage/storage.service'; // Added
+import { StorageService } from '../storage/storage.service';
 import { JobSelectors } from 'src/types/JobSelectors';
 
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
@@ -25,7 +25,7 @@ export class FetcherService {
     private readonly parser: ParserService,
     private readonly ai: AiService,
     private configService: ConfigService,
-    private storageService: StorageService // Added
+    private storageService: StorageService 
   ) {}
 
   onModuleInit() {
@@ -65,9 +65,21 @@ export class FetcherService {
         const config = siteConfigs[site];
         let isValid = false;
 
-        // 1. Try to use selectors from JSON storage first
-        if (storedSelectors[site]) {
-          this.logger.log(`Testing stored selectors for ${site}...`);
+        // 1. First, check if hardcoded base selectors are still working
+        this.logger.log(`Testing hardcoded selectors for ${site}...`);
+        isValid = await this.validateSelectors(config.url, {
+          linkSelector: config.linkSelector,
+          nextBtn: config.nextBtn
+        });
+        //isValid=true
+
+        if (isValid) {
+          this.logger.log(`Hardcoded selectors for ${site} are valid. Skipping storage/AI.`);
+        }
+
+        // 2. Try to use selectors from JSON storage if hardcoded failed
+        if (!isValid && storedSelectors[site]) {
+          this.logger.log(`Hardcoded failed. Testing stored selectors for ${site}...`);
           isValid = await this.validateSelectors(config.url, storedSelectors[site]);
 
           if (isValid) {
@@ -80,13 +92,12 @@ export class FetcherService {
           }
         }
 
-        // 2. If stored selectors don't exist or are invalid, use AI
+        // 3. If both hardcoded and stored selectors are invalid/missing, use AI
         if (!isValid) {
           try {
             this.logger.log(`Identifying new selectors for ${site} via AI...`);
             const jobHTML = await this.parser.extractJobHTML(config.url);
             const aiSelectors = await this.ai.analyzeJobHTML(jobHTML);
-            console.log("aiSelectors: ", aiSelectors)
 
             if (aiSelectors && aiSelectors.linkSelector !== "") {
               // Validate AI-generated selectors before applying and saving
