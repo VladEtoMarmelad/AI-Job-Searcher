@@ -50,9 +50,25 @@ export class FetcherService {
 
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      // We check if at least one element matches the job link selector
-      const element = await page.waitForSelector(selectors.linkSelector, { timeout: 8000 });
-      return !!element;
+      
+      // Verification of the job link selector availability
+      const isLinkValid = await page.waitForSelector(selectors.linkSelector, { timeout: 8000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!isLinkValid) return false;
+
+      // Verification of the pagination button if it is defined in the config
+      // This ensures that we can navigate through multiple pages
+      if (selectors.nextBtn) {
+        const isNextBtnValid = await page.waitForSelector(selectors.nextBtn, { timeout: 5000 })
+          .then(() => true)
+          .catch(() => false);
+        
+        if (!isNextBtnValid) return false;
+      }
+
+      return true;
     } catch (error) {
       return false;
     } finally {
