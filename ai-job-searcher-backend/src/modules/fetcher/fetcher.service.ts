@@ -54,42 +54,6 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Validates if the provided selectors actually work on the target page.
-   * This prevents using AI-generated or outdated cached selectors that don't find any data.
-   */
-  private async validateSelectors(url: string, selectors: JobSelectors): Promise<boolean> {
-    const context = await this.browser.newContext({ userAgent: this.userAgent });
-    const page = await context.newPage();
-
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      
-      // Verification of the job link selector availability
-      const isLinkValid = await page.waitForSelector(selectors.linkSelector, { timeout: 8000 })
-        .then(() => true)
-        .catch(() => false);
-
-      if (!isLinkValid) return false;
-
-      // Verification of the pagination button if it is defined in the config
-      // This ensures that we can navigate through multiple pages
-      if (selectors.nextBtn) {
-        const isNextBtnValid = await page.waitForSelector(selectors.nextBtn, { timeout: 5000 })
-          .then(() => true)
-          .catch(() => false);
-        
-        if (!isNextBtnValid) return false;
-      }
-
-      return true;
-    } catch (error) {
-      return false;
-    } finally {
-      await context.close();
-    }
-  }
-
-  /**
    * Coordinates the selector recovery strategy: Hardcoded -> Storage -> AI discovery.
    */
   async getSiteConfigs(keyword: string): Promise<Record<string, SiteConfig>> {
@@ -119,7 +83,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
 
   private async tryHardcodedSelectors(site: string, config: SiteConfig): Promise<boolean> {
     this.logger.log(`Testing hardcoded selectors for ${site}...`);
-    const isValid = await this.validateSelectors(config.url, {
+    const isValid = await this.parser.validateSelectors(config.url, {
       linkSelector: config.linkSelector,
       nextBtn: config.nextBtn
     });
@@ -140,7 +104,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
 
   private async tryStoredSelectors(site: string, config: SiteConfig, stored: JobSelectors): Promise<boolean> {
     this.logger.log(`Testing stored selectors for ${site}...`);
-    const isValid = await this.validateSelectors(config.url, stored);
+    const isValid = await this.parser.validateSelectors(config.url, stored);
 
     if (isValid) {
       this.logger.log(`Stored selectors for ${site} are valid.`);
@@ -160,7 +124,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       const aiSelectors = await this.ai.analyzeJobHTML(jobHTML);
 
       if (aiSelectors && aiSelectors.linkSelector !== "") {
-        const isAiValid = await this.validateSelectors(config.url, aiSelectors);
+        const isAiValid = await this.parser.validateSelectors(config.url, aiSelectors);
         
         if (isAiValid) {
           config.linkSelector = aiSelectors.linkSelector;

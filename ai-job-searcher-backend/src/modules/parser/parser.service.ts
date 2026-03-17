@@ -1,18 +1,26 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { chromium, Browser, Page } from 'playwright';
+import { Browser, Page } from 'playwright';
+import { chromium } from 'playwright-extra';
+import { JobSelectors } from 'src/types/JobSelectors';
+
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+
+chromium.use(StealthPlugin());
 
 @Injectable()
 export class ParserService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ParserService.name);
   private maxTextLength: number;
   private browser: Browser;
+  private userAgent: string;
 
   constructor(private configService: ConfigService) {}
 
   // Initialize the browser when the module starts
   async onModuleInit() {
     this.maxTextLength = parseInt(this.configService.get<string>('MAX_PARSER_LENGTH') || '5000', 10);
+    this.userAgent = this.configService.get<string>('BROWSER_USER_AGENT') || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
 
     this.browser = await chromium.launch({
       headless: true,
@@ -24,6 +32,42 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     if (this.browser) {
       await this.browser.close();
+    }
+  }
+
+  /**
+   * Validates if the provided selectors actually work on the target page.
+   * This prevents using AI-generated or outdated cached selectors that don't find any data.
+   */
+  async validateSelectors(url: string, selectors: JobSelectors): Promise<boolean> {
+    const context = await this.browser.newContext({ userAgent: this.userAgent });
+    const page = await context.newPage();
+
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      
+      // Verification of the job link selector availability
+      const isLinkValid = await page.waitForSelector(selectors.linkSelector, { timeout: 8000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!isLinkValid) return false;
+
+      // Verification of the pagination button if it is defined in the config
+      // This ensures that we can navigate through multiple pages
+      if (selectors.nextBtn) {
+        const isNextBtnValid = await page.waitForSelector(selectors.nextBtn, { timeout: 5000 })
+          .then(() => true)
+          .catch(() => false);
+        
+        if (!isNextBtnValid) return false;
+      }
+
+      return true;
+    } catch (error) {
+      return false;
+    } finally {
+      await context.close();
     }
   }
 
