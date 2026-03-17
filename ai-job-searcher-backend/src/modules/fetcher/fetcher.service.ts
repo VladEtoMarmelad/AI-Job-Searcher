@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { chromium } from 'playwright-extra';
 import { Browser, Page } from 'playwright';
 import { SiteConfig } from 'src/types/SiteConfig';
@@ -15,9 +15,10 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 chromium.use(StealthPlugin());
 
 @Injectable()
-export class FetcherService implements OnModuleInit {
+export class FetcherService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FetcherService.name);
 
+  private browser: Browser;
   private userAgent: string;
   private maxSearchPages: number;
   private targets: string[];
@@ -32,7 +33,12 @@ export class FetcherService implements OnModuleInit {
     private notifierService: NotifierService
   ) {}
 
-  onModuleInit() {
+  async onModuleInit() {
+    this.browser = await chromium.launch({
+      headless: true,
+      args: ['--disable-blink-features=AutomationControlled']
+    }); 
+
     this.userAgent = this.configService.get<string>('BROWSER_USER_AGENT') || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
     this.maxSearchPages = parseInt(this.configService.get<string>('MAX_SEARCH_PAGES') || '3', 10);
     this.targets = (this.configService.get<string>('JOB_SITES') || 'robota.ua,dou.ua,djinni.co').split(',');
@@ -40,14 +46,11 @@ export class FetcherService implements OnModuleInit {
     this.notifyOnHardcodedSelectorsFail = this.configService.get<string>('NOTIFY_ON_HARDCODED_SELECTORS_FAIL') === "true";
   }
 
-  /**
-   * Centralized browser launch configuration to ensure consistency across methods.
-   */
-  private async launchBrowser(): Promise<Browser> {
-    return await chromium.launch({
-      headless: true,
-      args: ['--disable-blink-features=AutomationControlled']
-    });
+  // Close the browser when the module is destroyed to prevent memory leaks
+  async onModuleDestroy() {
+    if (this.browser) {
+      await this.browser.close();
+    }
   }
 
   /**
@@ -55,8 +58,7 @@ export class FetcherService implements OnModuleInit {
    * This prevents using AI-generated or outdated cached selectors that don't find any data.
    */
   private async validateSelectors(url: string, selectors: JobSelectors): Promise<boolean> {
-    const browser = await this.launchBrowser();
-    const context = await browser.newContext({ userAgent: this.userAgent });
+    const context = await this.browser.newContext({ userAgent: this.userAgent });
     const page = await context.newPage();
 
     try {
@@ -83,7 +85,7 @@ export class FetcherService implements OnModuleInit {
     } catch (error) {
       return false;
     } finally {
-      await browser.close();
+      await context.close();
     }
   }
 
@@ -180,8 +182,7 @@ export class FetcherService implements OnModuleInit {
    * Main entry point for job searching. Orchestrates the browser and iterates through sites.
    */
   async searchJobs(keyword: string): Promise<string[]> {
-    const browser = await this.launchBrowser();
-    const context = await browser.newContext({
+    const context = await this.browser.newContext({
       userAgent: this.userAgent,
       viewport: { width: 1280, height: 800 }
     });
@@ -198,7 +199,7 @@ export class FetcherService implements OnModuleInit {
         await this.scrapeSite(page, domain, config, keyword, allLinks);
       }
     } finally {
-      await browser.close();
+      await context.close();
     }
 
     this.logger.log(`Finished. Found: ${allLinks.size} unique links`);
