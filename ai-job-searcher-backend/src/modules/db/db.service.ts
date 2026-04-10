@@ -1,16 +1,16 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { MongoClient, Collection, Db, ObjectId, OptionalId, Filter } from 'mongodb';
 import { Vacancy } from '@sharedTypes/Vacancy';
-import { VacancyDocument } from "../../types/VacancyDocument"
+import { VacancyDocument } from "src/types/VacancyDocument"
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class DbService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DbService.name);
 
-  private uri: string;
-  private client: MongoClient;
-  private db: Db;
+  private uri!: string;
+  private client!: MongoClient;
+  private db!: Db;
 
   constructor(private configService: ConfigService) {}
 

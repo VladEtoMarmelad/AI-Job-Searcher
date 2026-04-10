@@ -8,7 +8,7 @@ import * as nodemailer from 'nodemailer';
 @Injectable()
 export class NotifierService implements OnModuleInit {
   private readonly logger = new Logger(NotifierService.name);
-  private transporter: Transporter;
+  private transporter!: Transporter;
   
   private gmailUser: string|undefined;
   private recipientEmail: string|undefined;

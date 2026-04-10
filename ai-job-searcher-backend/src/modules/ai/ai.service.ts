@@ -8,14 +8,14 @@ import Groq from "groq-sdk";
 @Injectable()
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
-  private groq: Groq;
-  private modelName: string;
+  private groq!: Groq;
+  private modelName!: string;
 
   constructor(private configService: ConfigService) {}
 
   onModuleInit() {
     const apiKey = this.configService.get<string>('GROQ_API_KEY');
-    this.modelName = this.configService.get<string>('AI_MODEL_NAME', 'llama-3.3-70b-versatile');
+    this.modelName = this.configService.get<string>('AI_MODEL_NAME', 'groq/compound-mini');
 
     if (!apiKey) {
       this.logger.error('GROQ_API_KEY is not defined in .env files!');
@@ -148,7 +148,7 @@ export class AiService implements OnModuleInit {
       const content = chatCompletion.choices[0]?.message?.content ?? "";
       return cleanAndParseJSON<JobSelectors>(content);
     } catch (error) {
-      this.logger.error(`Error analyzing HTML with AI model (${this.modelName}):`, error);
+      this.logger.error(`Error analyzing HTML with AI model (${this.modelName}):`, error instanceof Error ? error.message : error);
     }
   }
 }

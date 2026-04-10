@@ -29,7 +29,7 @@ export class StorageService {
       await fs.writeFile(this.filePath, JSON.stringify(allSelectors, null, 2));
       this.logger.log(`Selectors for ${domain} saved to storage.`);
     } catch (error) {
-      this.logger.error(`Failed to save selectors for ${domain}: ${error.message}`);
+      this.logger.error(`Failed to save selectors for ${domain}: ${error instanceof Error ? error.message : error}`);
     }
   }
 
@@ -43,7 +43,7 @@ export class StorageService {
         this.logger.warn(`Invalid selectors for ${domain} cleared from storage.`);
       }
     } catch (error) {
-      this.logger.error(`Failed to clear selectors for ${domain}: ${error.message}`);
+      this.logger.error(`Failed to clear selectors for ${domain}: ${error instanceof Error ? error.message : error}`);
     }
   }
 }

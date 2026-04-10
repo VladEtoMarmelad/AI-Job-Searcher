@@ -11,12 +11,12 @@ import { ConfigService } from '@nestjs/config';
 export class JobsService implements OnApplicationBootstrap, OnModuleInit {
   private readonly logger = new Logger(JobsService.name);
 
-  private resume: string;
-  private filters: string;
-  private searchKeyword: string;
-  private minScore: number;
-  private requestDelay: number;
-  private isEmailNotifyEnabled: boolean;
+  private resume!: string;
+  private filters!: string;
+  private searchKeyword!: string;
+  private minScore!: number;
+  private requestDelay!: number;
+  private isEmailNotifyEnabled!: boolean;
 
   constructor(
     private fetcher: FetcherService,
@@ -42,7 +42,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleInit {
       this.logger.log('The application is launched. Initiating the first search cycle...');
       this.runSearchCycle();
     } catch (error: unknown) {
-      this.logger.error("error: ", error)
+      this.logger.error("error: ", error instanceof Error ? error.message : error);
     }
   }
 

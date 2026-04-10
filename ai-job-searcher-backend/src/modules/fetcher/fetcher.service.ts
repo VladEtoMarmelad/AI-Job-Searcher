@@ -18,12 +18,12 @@ chromium.use(StealthPlugin());
 export class FetcherService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FetcherService.name);
 
-  private browser: Browser;
-  private userAgent: string;
-  private maxSearchPages: number;
-  private targets: string[];
-  private delay: number;
-  private notifyOnHardcodedSelectorsFail: boolean;
+  private browser!: Browser;
+  private userAgent!: string;
+  private maxSearchPages!: number;
+  private targets!: string[];
+  private delay!: number;
+  private notifyOnHardcodedSelectorsFail!: boolean;
 
   constructor(
     private readonly parser: ParserService,
@@ -138,7 +138,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         }
       }
     } catch (error) {
-      this.logger.error(`Error processing AI discovery for ${site}:`, error);
+      this.logger.error(`Error processing AI discovery for ${site}:`, error instanceof Error ? error.message : error);
     }
   }
 
@@ -186,7 +186,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         if (!hasNextPage) break;
       }
     } catch (domainError) {
-      this.logger.error(`Error processing ${domain}: ${domainError.message}`);
+      this.logger.error(`Error processing ${domain}: ${domainError instanceof Error ? domainError.message : domainError}`);
     }
   }
 

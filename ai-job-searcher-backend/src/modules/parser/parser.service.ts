@@ -11,9 +11,9 @@ chromium.use(StealthPlugin());
 @Injectable()
 export class ParserService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ParserService.name);
-  private maxTextLength: number;
-  private browser: Browser;
-  private userAgent: string;
+  private maxTextLength!: number;
+  private browser!: Browser;
+  private userAgent!: string;
 
   constructor(private configService: ConfigService) {}
 
@@ -99,7 +99,7 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
 
       return await callback(page);
     } catch (error) {
-      this.logger.error(`Playwright failed to process ${url}: ${error.message}`);
+      this.logger.error(`Playwright failed to process ${url}: ${error instanceof Error ? error.message : error}`);
       return '';
     } finally {
       // Always close the page and context to free up RAM
