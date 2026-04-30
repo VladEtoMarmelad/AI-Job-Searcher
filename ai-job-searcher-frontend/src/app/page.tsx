@@ -1,5 +1,7 @@
 import { Vacancy } from "@sharedTypes/Vacancy";
 import { FilterSidebar } from "@/components/FilterSidebar";
+import { DescriptionToggle } from "@/components/DescriptionToggle";
+import { UpdateDataButton } from "@/components/UpdateDataButton";
 import { VacancyList } from "@/components/VacancyList";
 import axios from 'axios';
 
@@ -32,7 +34,11 @@ export default async function HomePage({
         </header>
 
         <div className="flex flex-col md:flex-row gap-8 items-start">
-          <FilterSidebar filters={filters} />
+          <aside className="md:sticky md:top-8 w-full md:w-64 z-10 space-y-6">
+            <FilterSidebar filters={filters} />
+            <DescriptionToggle showDesc={filters.showDesc} />
+            <UpdateDataButton />
+          </aside>
           
           {error ? (
             <div className="bg-red-900/20 border border-red-500 text-red-200 p-4 rounded-lg flex-1">
