@@ -78,4 +78,8 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
       { $set: { viewed: isViewed } }
     )
   }
+
+  async deleteAllVacancies() {
+    await this.collection.deleteMany({});
+  }
 }

@@ -2,6 +2,7 @@ import { Vacancy } from "@sharedTypes/Vacancy";
 import { FilterSidebar } from "@/components/FilterSidebar";
 import { DescriptionToggle } from "@/components/DescriptionToggle";
 import { UpdateDataButton } from "@/components/UpdateDataButton";
+import { DeleteAllButton } from "@/components/DeleteAllButton";
 import { VacancyList } from "@/components/VacancyList";
 import axios from 'axios';
 
@@ -34,10 +35,11 @@ export default async function HomePage({
         </header>
 
         <div className="flex flex-col md:flex-row gap-8 items-start">
-          <aside className="md:sticky md:top-8 w-full md:w-64 z-10 space-y-6">
+          <aside className="md:sticky md:top-8 w-full md:w-64 z-10 space-y-6 max-h-screen overflow-y-auto scrollbar-hide">
             <FilterSidebar filters={filters} />
             <DescriptionToggle showDesc={filters.showDesc} />
             <UpdateDataButton />
+            <DeleteAllButton />
           </aside>
           
           {error ? (
