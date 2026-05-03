@@ -12,7 +12,7 @@ import { BotModule } from './modules/bot/bot.module';
     }),
     ScheduleModule.forRoot(), 
     JobsModule,
-    BotModule
+    ...(process.env.TG_BOT_ENABLED === 'true' ? [BotModule] : []),
   ]
 })
 export class AppModule {}
