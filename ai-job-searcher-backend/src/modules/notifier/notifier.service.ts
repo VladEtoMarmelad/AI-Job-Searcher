@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { AiJobAnalysis } from 'src/types/AiJobAnalysis';
 import { ConfigService } from '@nestjs/config';
 import { JobSelectors } from 'src/types/JobSelectors';
 import { Transporter } from 'nodemailer';
@@ -29,32 +28,6 @@ export class NotifierService implements OnModuleInit {
         pass: gmailPass, // Your gmail app password
       },
     });
-  }
-
-  async sendAlert(jobUrl: string, analysis: AiJobAnalysis) {
-    const message = `
-      **Matching Job Found!**
-      **Score:** ${analysis.score}/10
-      **Reason:** ${analysis.reasoning}
-      **Link:** ${jobUrl}
-    `;
-
-    // Email options utilize the pre-configured environment variables
-    const mailOptions = {
-      from: this.gmailUser,
-      to: this.recipientEmail, // Receiver's email address
-      subject: 'New Job Vacancy Found',
-      text: message,
-    };
-
-    try {
-      // Execute the sending process
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log('Email alert sent successfully');
-    } catch (error) {
-      // Error handling
-      this.logger.error('Failed to send email alert:', error);
-    }
   }
 
   /**
