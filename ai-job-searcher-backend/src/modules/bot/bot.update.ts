@@ -76,6 +76,12 @@ export class BotUpdate implements OnModuleInit {
     const userId = ctx.from?.id;
     if (!userId) return;
 
+    const state = this.userBrowsingState.get(userId);
+    if (!state) {
+      await ctx.reply('❌ browse mode is not active. Use /browse to start.');
+      return;
+    }
+
     this.userBrowsingState.delete(userId);
     await ctx.reply('👋 Browsing mode stopped.');
   }
