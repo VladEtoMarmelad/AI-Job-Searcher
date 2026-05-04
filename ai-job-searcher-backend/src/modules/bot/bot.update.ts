@@ -161,7 +161,6 @@ export class BotUpdate implements OnModuleInit {
 <b>Title:</b> ${this.escapeHtml(vacancy.title)}
 <b>Domain:</b> ${this.escapeHtml(vacancy.domain)}
 <b>Score:</b> ${vacancy.score}
-<b>Viewed:</b> ${vacancy.viewed ? '✅ Yes' : '❌ No'}
 
 <b>Description:</b>
 ${this.escapeHtml(vacancy.description)}
