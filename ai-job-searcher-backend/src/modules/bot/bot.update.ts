@@ -1,10 +1,12 @@
-import { Update, Ctx, Start, Command, InjectBot, On } from '@grammyjs/nestjs';
+import { Update, Ctx, Start, Command, InjectBot, On, Admin } from '@grammyjs/nestjs';
 import { Context, Bot, InlineKeyboard } from 'grammy';
 import { DbService } from 'src/modules/db/db.service';
-import { OnModuleInit } from '@nestjs/common'; // Required for lifecycle hook
+import { OnModuleInit, UseGuards } from '@nestjs/common'; // Required for lifecycle hook
 import { Vacancy } from '@sharedTypes/Vacancy';
+import { AdminGuard } from './admin.guard';
 
 @Update()
+@UseGuards(AdminGuard)
 export class BotUpdate implements OnModuleInit {
   constructor(
     @InjectBot() private readonly bot: Bot<Context>, // Injecting the bot instance to access API methods
