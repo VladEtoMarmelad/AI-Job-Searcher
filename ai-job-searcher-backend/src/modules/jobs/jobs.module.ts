@@ -14,6 +14,7 @@ import { DbModule } from '../db/db.module';
     NotifierModule, 
     ParserModule, 
     DbModule
-  ]
+  ],
+  exports: [JobsService],
 })
 export class JobsModule {}

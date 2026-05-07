@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BotUpdate } from './bot.update';
 import { DbService } from '../db/db.service';
+import { JobsModule } from '../jobs/jobs.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DbService } from '../db/db.service';
       },
       inject: [ConfigService],
     }),
+    JobsModule,
   ],
   providers: [BotUpdate, DbService],
 })

@@ -6,6 +6,12 @@ import { Injectable, OnApplicationBootstrap, OnModuleInit, Logger } from '@nestj
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 
+interface SearchCycleOverrides {
+  searchKeyword?: string;
+  resume?: string;
+  filters?: string;
+}
+
 @Injectable()
 export class JobsService implements OnApplicationBootstrap, OnModuleInit {
   private readonly logger = new Logger(JobsService.name);
@@ -55,9 +61,13 @@ export class JobsService implements OnApplicationBootstrap, OnModuleInit {
     await this.runSearchCycle();
   }
 
-  async runSearchCycle() {
-    // Keywords and filters are derived from initialized class properties
-    const jobs: string[] = await this.fetcher.searchJobs(this.searchKeyword);
+  async runSearchCycle(overrides?: SearchCycleOverrides): Promise<void> {
+    // Use provided values or fall back to class properties initialized from environment
+    const searchKeyword = overrides?.searchKeyword ?? this.searchKeyword;
+    const resume = overrides?.resume ?? this.resume;
+    const filters = overrides?.filters ?? this.filters;
+
+    const jobs: string[] = await this.fetcher.searchJobs(searchKeyword);
 
     for (const url of jobs) {
       const exists = await this.db.isVacancyExists(url);
@@ -67,7 +77,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleInit {
       }
 
       const description = await this.parser.extractJobDescription(url);
-      const analysis = await this.ai.analyzeJob(this.resume, description, this.filters);
+      const analysis = await this.ai.analyzeJob(resume, description, filters);
       
       await this.db.saveVacancy({
         url,
