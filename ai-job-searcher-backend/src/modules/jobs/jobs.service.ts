@@ -14,6 +14,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleInit {
   private filters!: string;
   private searchKeyword!: string;
   private requestDelay!: number;
+  private enableAutoSearch!: boolean;
 
   constructor(
     private fetcher: FetcherService,
@@ -29,9 +30,14 @@ export class JobsService implements OnApplicationBootstrap, OnModuleInit {
     this.filters = this.configService.get<string>('JOB_FILTERS') || "";
     this.searchKeyword = this.configService.get<string>('SEARCH_KEYWORD') || "Node.js Developer";
     this.requestDelay = parseInt(this.configService.get<string>('REQUEST_DELAY_MS') || '2000', 10);
+    this.enableAutoSearch = this.configService.get<string>('ENABLE_AUTO_SEARCH')?.toLowerCase() === 'true' || false;
   }
 
   onApplicationBootstrap() {
+    if (!this.enableAutoSearch) {
+      this.logger.log('Auto search is disabled via ENABLE_AUTO_SEARCH configuration');
+      return;
+    }
     try {
       this.logger.log('The application is launched. Initiating the first search cycle...');
       this.runSearchCycle();
@@ -42,6 +48,9 @@ export class JobsService implements OnApplicationBootstrap, OnModuleInit {
 
   @Cron(process.env.SEARCH_CRON || CronExpression.EVERY_HOUR)
   async handleScheduledSearch() {
+    if (!this.enableAutoSearch) {
+      return;
+    }
     this.logger.log('Launching a scheduled job search...');
     await this.runSearchCycle();
   }

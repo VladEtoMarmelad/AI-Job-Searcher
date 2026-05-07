@@ -1,4 +1,4 @@
-import { Update, Ctx, Start, Command, InjectBot, On, Admin } from '@grammyjs/nestjs';
+import { Update, Ctx, Start, Command, InjectBot, On } from '@grammyjs/nestjs';
 import { Context, Bot, InlineKeyboard } from 'grammy';
 import { DbService } from 'src/modules/db/db.service';
 import { OnModuleInit, UseGuards } from '@nestjs/common'; // Required for lifecycle hook
