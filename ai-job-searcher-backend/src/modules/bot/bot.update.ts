@@ -1,6 +1,7 @@
 import { Update, Ctx, Start, Command, InjectBot, On } from '@grammyjs/nestjs';
 import { Context, Bot, InlineKeyboard } from 'grammy';
 import { DbService } from 'src/modules/db/db.service';
+import { JobsService } from 'src/modules/jobs/jobs.service';
 import { OnModuleInit, UseGuards } from '@nestjs/common'; // Required for lifecycle hook
 import { Vacancy } from '@sharedTypes/Vacancy';
 import { AdminGuard } from './admin.guard';
@@ -10,11 +11,19 @@ import { AdminGuard } from './admin.guard';
 export class BotUpdate implements OnModuleInit {
   constructor(
     @InjectBot() private readonly bot: Bot<Context>, // Injecting the bot instance to access API methods
-    private readonly dbService: DbService
+    private readonly dbService: DbService,
+    private readonly jobsService: JobsService,
   ) {}
 
   // Stores browsing state for each user: userId -> {vacancies, currentIndex}
   private userBrowsingState = new Map<number, { vacancies: Vacancy[]; currentIndex: number }>();
+
+  // Tracks search cycle argument collection state for each user
+  private userSearchInputState = new Map<number, {
+    step: 'awaiting_keyword' | 'awaiting_resume' | 'awaiting_filters';
+    searchKeyword?: string;
+    resume?: string;
+  }>();
 
   // Registers commands in the Telegram menu button on module initialization
   async onModuleInit(): Promise<void> {
@@ -23,6 +32,7 @@ export class BotUpdate implements OnModuleInit {
       { command: 'vacanciesamount', description: 'View vacancy statistics' },
       { command: 'browse', description: 'Browse unviewed vacancies' },
       { command: 'stopbrowse', description: 'Stop browsing mode' },
+      { command: 'customsearch', description: 'Run search with custom parameters' },
     ]);
   }
 
@@ -86,6 +96,61 @@ export class BotUpdate implements OnModuleInit {
 
     this.userBrowsingState.delete(userId);
     await ctx.reply('👋 Browsing mode stopped.');
+  }
+
+  @Command('customsearch')
+  async onCustomSearch(@Ctx() ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    // Initialize search input state
+    this.userSearchInputState.set(userId, {
+      step: 'awaiting_keyword',
+    });
+
+    await ctx.reply('🔍 Enter search keyword for job search:');
+  }
+
+  @On('message:text')
+  async onTextMessage(@Ctx() ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    const inputState = this.userSearchInputState.get(userId);
+    if (!inputState) return;
+
+    const text = ctx.message?.text;
+    if (!text) return;
+
+    if (inputState.step === 'awaiting_keyword') {
+      inputState.searchKeyword = text;
+      inputState.step = 'awaiting_resume';
+      await ctx.reply('📄 Enter your resume content:');
+    } else if (inputState.step === 'awaiting_resume') {
+      inputState.resume = text;
+      inputState.step = 'awaiting_filters';
+      await ctx.reply('🎯 Enter filters (or send "-" for empty):');
+    } else if (inputState.step === 'awaiting_filters') {
+      const filters = text === '-' ? '' : text;
+
+      // Clean up the input state
+      this.userSearchInputState.delete(userId);
+
+      try {
+        await ctx.reply('⏳ Starting custom search...');
+
+        await this.jobsService.runSearchCycle({
+          searchKeyword: inputState.searchKeyword,
+          resume: inputState.resume,
+          filters,
+        });
+
+        await ctx.reply('✅ Custom search completed successfully!');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        await ctx.reply(`❌ Error during search: ${errorMessage}`);
+      }
+    }
   }
 
   @On('callback_query')

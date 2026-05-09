@@ -57,8 +57,10 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
    * Coordinates the selector recovery strategy: Hardcoded -> Storage -> AI discovery.
    */
   async getSiteConfigs(keyword: string): Promise<Record<string, SiteConfig>> {
+    this.logger.log(`Initializing site configs with keyword: "${keyword}"`);
     const siteConfigs = getBaseSiteConfigs(keyword);
     const storedSelectors = await this.storageService.getAllSelectors();
+    this.logger.log(`Loaded stored selectors for sites: ${Object.keys(storedSelectors).join(', ') || 'none'}`);
 
     for (const site of this.targets) {
       const config = siteConfigs[site];
@@ -82,7 +84,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async tryHardcodedSelectors(site: string, config: SiteConfig): Promise<boolean> {
-    this.logger.log(`Testing hardcoded selectors for ${site}...`);
+    this.logger.log(`Testing hardcoded selectors for ${site}: linkSelector=${config.linkSelector}`);
     const isValid = await this.parser.validateSelectors(config.url, {
       linkSelector: config.linkSelector,
       nextBtn: config.nextBtn
@@ -91,7 +93,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
     if (isValid) {
       this.logger.log(`Hardcoded selectors for ${site} are valid. Skipping storage/AI.`);
     } else {
-      this.logger.log(`Hardcoded selectors failed for ${site}`);
+      this.logger.warn(`Hardcoded selectors failed for ${site} at URL: ${config.url}`);
       if (this.notifyOnHardcodedSelectorsFail) {
         this.notifierService.sendHardcodedSelectorFailureAlert(site, config.url, {
           linkSelector: config.linkSelector, 
@@ -103,14 +105,15 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async tryStoredSelectors(site: string, config: SiteConfig, stored: JobSelectors): Promise<boolean> {
-    this.logger.log(`Testing stored selectors for ${site}...`);
+    this.logger.log(`Testing stored selectors for ${site}: linkSelector=${stored.linkSelector}`);
     const isValid = await this.parser.validateSelectors(config.url, stored);
 
     if (isValid) {
-      this.logger.log(`Stored selectors for ${site} are valid.`);
+      this.logger.log(`Stored selectors for ${site} are valid. Applying to config.`);
       config.linkSelector = stored.linkSelector;
       config.nextBtn = stored.nextBtn || config.nextBtn;
     } else {
+      this.logger.warn(`Stored selectors failed for ${site}. Clearing cache to trigger re-discovery.`);
       // If stored selectors fail, clear them to trigger re-discovery
       await this.storageService.clearSelectors(site);
     }
@@ -124,9 +127,11 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       const aiSelectors = await this.ai.analyzeJobHTML(jobHTML);
 
       if (aiSelectors && aiSelectors.linkSelector !== "") {
+        this.logger.log(`AI discovered selectors for ${site}: linkSelector=${aiSelectors.linkSelector}`);
         const isAiValid = await this.parser.validateSelectors(config.url, aiSelectors);
         
         if (isAiValid) {
+          this.logger.log(`AI-discovered selectors validated successfully for ${site}. Saving to storage.`);
           config.linkSelector = aiSelectors.linkSelector;
           config.nextBtn = aiSelectors.nextBtn || config.nextBtn;
           await this.storageService.saveSelectors(site, {
@@ -134,8 +139,10 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
             nextBtn: config.nextBtn
           });
         } else {
-          this.logger.warn(`AI suggested invalid selectors for ${site}. Falling back to hardcoded defaults.`);
+          this.logger.warn(`AI-discovered selectors validation failed for ${site}. Keeping hardcoded defaults.`);
         }
+      } else {
+        this.logger.warn(`AI discovery did not return valid selectors for ${site}.`);
       }
     } catch (error) {
       this.logger.error(`Error processing AI discovery for ${site}:`, error instanceof Error ? error.message : error);

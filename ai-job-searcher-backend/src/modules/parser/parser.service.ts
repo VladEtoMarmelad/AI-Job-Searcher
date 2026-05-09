@@ -38,9 +38,14 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
   /**
    * Validates if the provided selectors actually work on the target page.
    * This prevents using AI-generated or outdated cached selectors that don't find any data.
+   * Uses the same viewport as searchJobs to ensure consistent HTML rendering across validation and scraping.
    */
   async validateSelectors(url: string, selectors: JobSelectors): Promise<boolean> {
-    const context = await this.browser.newContext({ userAgent: this.userAgent });
+    const context = await this.browser.newContext({ 
+      userAgent: this.userAgent,
+      // Match viewport from searchJobs to ensure consistent DOM rendering
+      viewport: { width: 1280, height: 800 }
+    });
     const page = await context.newPage();
 
     try {
