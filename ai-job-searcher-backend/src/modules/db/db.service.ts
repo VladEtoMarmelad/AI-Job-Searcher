@@ -79,6 +79,15 @@ export class DbService implements OnModuleInit, OnModuleDestroy {
     )
   }
 
+  async updateVacancyFavorite(id: string, favorite: boolean) {
+    const isFavorite = String(favorite) === 'true';
+
+    await this.collection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { favorite: isFavorite } }
+    )
+  }
+
   async deleteAllVacancies() {
     await this.collection.deleteMany({});
   }

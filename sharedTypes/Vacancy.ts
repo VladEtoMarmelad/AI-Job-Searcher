@@ -6,4 +6,5 @@ export interface Vacancy {
   domain: string;
   score: number;
   viewed: boolean;
+  favorite: boolean;
 }

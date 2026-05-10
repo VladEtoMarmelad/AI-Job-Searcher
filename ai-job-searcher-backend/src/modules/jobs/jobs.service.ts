@@ -85,7 +85,8 @@ export class JobsService implements OnApplicationBootstrap, OnModuleInit {
         description: analysis?.reasoning ?? "",
         domain: new URL(url).hostname,
         score: analysis?.score ?? 0,
-        viewed: false
+        viewed: false,
+        favorite: false
       })
 
       // Prevents rate limiting by the target job board

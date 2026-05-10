@@ -18,6 +18,9 @@ export class BotUpdate implements OnModuleInit {
   // Stores browsing state for each user: userId -> {vacancies, currentIndex}
   private userBrowsingState = new Map<number, { vacancies: Vacancy[]; currentIndex: number }>();
 
+  // Stores favorites browsing state for each user: userId -> {vacancies, currentIndex}
+  private userFavoritesBrowsingState = new Map<number, { vacancies: Vacancy[]; currentIndex: number }>();
+
   // Tracks search cycle argument collection state for each user
   private userSearchInputState = new Map<number, {
     step: 'awaiting_keyword' | 'awaiting_resume' | 'awaiting_filters';
@@ -32,6 +35,8 @@ export class BotUpdate implements OnModuleInit {
       { command: 'vacanciesamount', description: 'View vacancy statistics' },
       { command: 'browse', description: 'Browse unviewed vacancies' },
       { command: 'stopbrowse', description: 'Stop browsing mode' },
+      { command: 'favorites', description: 'Browse favorite vacancies' },
+      { command: 'stopfavorites', description: 'Stop browsing favorites' },
       { command: 'customsearch', description: 'Run search with custom parameters' },
     ]);
   }
@@ -66,7 +71,7 @@ export class BotUpdate implements OnModuleInit {
     if (!userId) return;
 
     const vacancies = await this.dbService.getVacancies();
-    const notViewedVacancies = await vacancies.filter((v) => !v.viewed);
+    const notViewedVacancies = vacancies.filter((v) => !v.viewed && !v.favorite);
 
     if (notViewedVacancies.length === 0) {
       await ctx.reply('🎉 No more vacancies to view!');
@@ -96,6 +101,43 @@ export class BotUpdate implements OnModuleInit {
 
     this.userBrowsingState.delete(userId);
     await ctx.reply('👋 Browsing mode stopped.');
+  }
+
+  @Command('favorites')
+  async onFavorites(@Ctx() ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    const vacancies = await this.dbService.getVacancies();
+    const favoriteVacancies = vacancies.filter((v) => v.favorite);
+
+    if (favoriteVacancies.length === 0) {
+      await ctx.reply('🎉 No favorite vacancies yet!');
+      return;
+    }
+
+    // Initialize favorites browsing state for this user
+    this.userFavoritesBrowsingState.set(userId, {
+      vacancies: favoriteVacancies,
+      currentIndex: 0,
+    });
+
+    await this.displayFavoriteVacancy(ctx, userId);
+  }
+
+  @Command('stopfavorites')
+  async onStopFavorites(@Ctx() ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    const state = this.userFavoritesBrowsingState.get(userId);
+    if (!state) {
+      await ctx.reply('❌ Favorites browsing mode is not active. Use /favorites to start.');
+      return;
+    }
+
+    this.userFavoritesBrowsingState.delete(userId);
+    await ctx.reply('👋 Favorites browsing mode stopped.');
   }
 
   @Command('customsearch')
@@ -197,6 +239,78 @@ export class BotUpdate implements OnModuleInit {
           this.userBrowsingState.delete(userId);
         }
       }
+    } else if (data === 'add_to_favorite') {
+      const state = this.userBrowsingState.get(userId);
+      if (!state) return;
+
+      const vacancy = state.vacancies[state.currentIndex];
+      if (vacancy._id) {
+        // Mark current vacancy as favorite
+        await this.dbService.updateVacancyFavorite(vacancy._id, true);
+
+        // Move to next vacancy
+        state.currentIndex++;
+
+        // Answer callback
+        await ctx.answerCallbackQuery({
+          text: '⭐ Added to favorites',
+          show_alert: false,
+        });
+
+        // Display next vacancy or show completion message
+        if (state.currentIndex < state.vacancies.length) {
+          await this.displayVacancy(ctx, userId);
+        } else {
+          await ctx.editMessageText('🎉 You have viewed all vacancies!');
+          this.userBrowsingState.delete(userId);
+        }
+      }
+    } else if (data === 'next_favorite') {
+      const state = this.userFavoritesBrowsingState.get(userId);
+      if (!state) return;
+
+      // Move to next vacancy
+      state.currentIndex++;
+
+      // Answer callback
+      await ctx.answerCallbackQuery({
+        text: '⏭️ Next favorite',
+        show_alert: false,
+      });
+
+      // Display next vacancy or show completion message
+      if (state.currentIndex < state.vacancies.length) {
+        await this.displayFavoriteVacancy(ctx, userId);
+      } else {
+        await ctx.editMessageText('🎉 You have reviewed all favorite vacancies!');
+        this.userFavoritesBrowsingState.delete(userId);
+      }
+    } else if (data === 'remove_from_favorite') {
+      const state = this.userFavoritesBrowsingState.get(userId);
+      if (!state) return;
+
+      const vacancy = state.vacancies[state.currentIndex];
+      if (vacancy._id) {
+        // Remove current vacancy from favorites
+        await this.dbService.updateVacancyFavorite(vacancy._id, false);
+
+        // Remove from local list
+        state.vacancies.splice(state.currentIndex, 1);
+
+        // Answer callback
+        await ctx.answerCallbackQuery({
+          text: '❌ Removed from favorites',
+          show_alert: false,
+        });
+
+        // Display next vacancy or show completion message
+        if (state.currentIndex < state.vacancies.length) {
+          await this.displayFavoriteVacancy(ctx, userId);
+        } else {
+          await ctx.editMessageText('🎉 You have reviewed all favorite vacancies!');
+          this.userFavoritesBrowsingState.delete(userId);
+        }
+      }
     }
   }
 
@@ -212,7 +326,31 @@ export class BotUpdate implements OnModuleInit {
     const keyboard = new InlineKeyboard()
       .url('🌐 Open URL', vacancy.url)
       .row()
+      .text('⭐ Add to Favorites', 'add_to_favorite')
+      .row()
       .text('✅ Mark as Viewed', 'mark_viewed');
+
+    await ctx.reply(messageText, {
+      reply_markup: keyboard,
+      parse_mode: 'HTML',
+    });
+  }
+
+  // Helper method to display a favorite vacancy with inline buttons
+  private async displayFavoriteVacancy(ctx: Context, userId: number): Promise<void> {
+    const state = this.userFavoritesBrowsingState.get(userId);
+    if (!state) return;
+
+    const vacancy = state.vacancies[state.currentIndex];
+    const messageText = this.formatVacancyMessage(vacancy, state.currentIndex, state.vacancies.length);
+
+    // Create inline keyboard with buttons
+    const keyboard = new InlineKeyboard()
+      .url('🌐 Open URL', vacancy.url)
+      .row()
+      .text('⏭️ Next Favorite', 'next_favorite')
+      .row()
+      .text('❌ Remove from Favorites', 'remove_from_favorite');
 
     await ctx.reply(messageText, {
       reply_markup: keyboard,
