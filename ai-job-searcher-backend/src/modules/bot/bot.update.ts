@@ -3,30 +3,20 @@ import { Context, Bot, InlineKeyboard } from 'grammy';
 import { DbService } from 'src/modules/db/db.service';
 import { JobsService } from 'src/modules/jobs/jobs.service';
 import { OnModuleInit, UseGuards } from '@nestjs/common'; // Required for lifecycle hook
-import { Vacancy } from '@sharedTypes/Vacancy';
 import { AdminGuard } from './admin.guard';
+import { VacancyFormatterService } from './vacancy-formatter.service';
+import { BrowsingStateService } from './browsing-state.service';
 
 @Update()
 @UseGuards(AdminGuard)
 export class BotUpdate implements OnModuleInit {
   constructor(
-    @InjectBot() private readonly bot: Bot<Context>, // Injecting the bot instance to access API methods
+    @InjectBot() private readonly bot: Bot<Context>,
     private readonly dbService: DbService,
     private readonly jobsService: JobsService,
+    private readonly vacancyFormatterService: VacancyFormatterService,
+    private readonly browsingStateService: BrowsingStateService,
   ) {}
-
-  // Stores browsing state for each user: userId -> {vacancies, currentIndex}
-  private userBrowsingState = new Map<number, { vacancies: Vacancy[]; currentIndex: number }>();
-
-  // Stores favorites browsing state for each user: userId -> {vacancies, currentIndex}
-  private userFavoritesBrowsingState = new Map<number, { vacancies: Vacancy[]; currentIndex: number }>();
-
-  // Tracks search cycle argument collection state for each user
-  private userSearchInputState = new Map<number, {
-    step: 'awaiting_keyword' | 'awaiting_resume' | 'awaiting_filters';
-    searchKeyword?: string;
-    resume?: string;
-  }>();
 
   // Registers commands in the Telegram menu button on module initialization
   async onModuleInit(): Promise<void> {
@@ -78,13 +68,7 @@ export class BotUpdate implements OnModuleInit {
       return;
     }
 
-    // Initialize browsing state for this user
-    this.userBrowsingState.set(userId, {
-      vacancies: notViewedVacancies,
-      currentIndex: 0,
-    });
-
-    // Display the first vacancy
+    this.browsingStateService.initializeBrowsingState(userId, notViewedVacancies);
     await this.displayVacancy(ctx, userId);
   }
 
@@ -93,13 +77,12 @@ export class BotUpdate implements OnModuleInit {
     const userId = ctx.from?.id;
     if (!userId) return;
 
-    const state = this.userBrowsingState.get(userId);
-    if (!state) {
+    if (!this.browsingStateService.getBrowsingState(userId)) {
       await ctx.reply('❌ browse mode is not active. Use /browse to start.');
       return;
     }
 
-    this.userBrowsingState.delete(userId);
+    this.browsingStateService.clearBrowsingState(userId);
     await ctx.reply('👋 Browsing mode stopped.');
   }
 
@@ -116,12 +99,7 @@ export class BotUpdate implements OnModuleInit {
       return;
     }
 
-    // Initialize favorites browsing state for this user
-    this.userFavoritesBrowsingState.set(userId, {
-      vacancies: favoriteVacancies,
-      currentIndex: 0,
-    });
-
+    this.browsingStateService.initializeFavoritesBrowsingState(userId, favoriteVacancies);
     await this.displayFavoriteVacancy(ctx, userId);
   }
 
@@ -130,13 +108,12 @@ export class BotUpdate implements OnModuleInit {
     const userId = ctx.from?.id;
     if (!userId) return;
 
-    const state = this.userFavoritesBrowsingState.get(userId);
-    if (!state) {
+    if (!this.browsingStateService.getFavoritesBrowsingState(userId)) {
       await ctx.reply('❌ Favorites browsing mode is not active. Use /favorites to start.');
       return;
     }
 
-    this.userFavoritesBrowsingState.delete(userId);
+    this.browsingStateService.clearFavoritesBrowsingState(userId);
     await ctx.reply('👋 Favorites browsing mode stopped.');
   }
 
@@ -145,11 +122,7 @@ export class BotUpdate implements OnModuleInit {
     const userId = ctx.from?.id;
     if (!userId) return;
 
-    // Initialize search input state
-    this.userSearchInputState.set(userId, {
-      step: 'awaiting_keyword',
-    });
-
+    this.browsingStateService.initializeSearchInputState(userId);
     await ctx.reply('🔍 Enter search keyword for job search:');
   }
 
@@ -158,7 +131,7 @@ export class BotUpdate implements OnModuleInit {
     const userId = ctx.from?.id;
     if (!userId) return;
 
-    const inputState = this.userSearchInputState.get(userId);
+    const inputState = this.browsingStateService.getSearchInputState(userId);
     if (!inputState) return;
 
     const text = ctx.message?.text;
@@ -175,8 +148,7 @@ export class BotUpdate implements OnModuleInit {
     } else if (inputState.step === 'awaiting_filters') {
       const filters = text === '-' ? '' : text;
 
-      // Clean up the input state
-      this.userSearchInputState.delete(userId);
+      this.browsingStateService.clearSearchInputState(userId);
 
       try {
         await ctx.reply('⏳ Starting custom search...');
@@ -204,125 +176,122 @@ export class BotUpdate implements OnModuleInit {
     if (!data) return;
 
     if (data === 'open_url') {
-      const state = this.userBrowsingState.get(userId);
-      if (state) {
-        const vacancy = state.vacancies[state.currentIndex];
-        // Answer callback to remove loading state
-        await ctx.answerCallbackQuery({
-          text: '🔗 Opening URL in a new tab',
-          show_alert: false,
-        });
-      }
+      this.browsingStateService.getBrowsingState(userId);
+      await ctx.answerCallbackQuery({
+        text: '🔗 Opening URL in a new tab',
+        show_alert: false,
+      });
     } else if (data === 'mark_viewed') {
-      const state = this.userBrowsingState.get(userId);
-      if (!state) return;
-
-      const vacancy = state.vacancies[state.currentIndex];
-      if (vacancy._id) {
-        // Mark current vacancy as viewed
-        await this.dbService.updateVacancyStatus(vacancy._id, true);
-
-        // Move to next vacancy
-        state.currentIndex++;
-
-        // Answer callback
-        await ctx.answerCallbackQuery({
-          text: '✅ Marked as viewed',
-          show_alert: false,
-        });
-
-        // Display next vacancy or show completion message
-        if (state.currentIndex < state.vacancies.length) {
-          await this.displayVacancy(ctx, userId);
-        } else {
-          await ctx.editMessageText('🎉 You have viewed all vacancies!');
-          this.userBrowsingState.delete(userId);
-        }
-      }
+      await this.handleMarkViewed(ctx, userId);
     } else if (data === 'add_to_favorite') {
-      const state = this.userBrowsingState.get(userId);
-      if (!state) return;
-
-      const vacancy = state.vacancies[state.currentIndex];
-      if (vacancy._id) {
-        // Mark current vacancy as favorite
-        await this.dbService.updateVacancyFavorite(vacancy._id, true);
-
-        // Move to next vacancy
-        state.currentIndex++;
-
-        // Answer callback
-        await ctx.answerCallbackQuery({
-          text: '⭐ Added to favorites',
-          show_alert: false,
-        });
-
-        // Display next vacancy or show completion message
-        if (state.currentIndex < state.vacancies.length) {
-          await this.displayVacancy(ctx, userId);
-        } else {
-          await ctx.editMessageText('🎉 You have viewed all vacancies!');
-          this.userBrowsingState.delete(userId);
-        }
-      }
+      await this.handleAddToFavorite(ctx, userId);
     } else if (data === 'next_favorite') {
-      const state = this.userFavoritesBrowsingState.get(userId);
-      if (!state) return;
+      await this.handleNextFavorite(ctx, userId);
+    } else if (data === 'remove_from_favorite') {
+      await this.handleRemoveFromFavorite(ctx, userId);
+    }
+  }
 
-      // Move to next vacancy
+  private async handleMarkViewed(ctx: Context, userId: number): Promise<void> {
+    const state = this.browsingStateService.getBrowsingState(userId);
+    if (!state) return;
+
+    const vacancy = state.vacancies[state.currentIndex];
+    if (vacancy._id) {
+      await this.dbService.updateVacancyStatus(vacancy._id, true);
       state.currentIndex++;
 
-      // Answer callback
       await ctx.answerCallbackQuery({
-        text: '⏭️ Next favorite',
+        text: '✅ Marked as viewed',
         show_alert: false,
       });
 
-      // Display next vacancy or show completion message
       if (state.currentIndex < state.vacancies.length) {
-        await this.displayFavoriteVacancy(ctx, userId);
+        await this.displayVacancy(ctx, userId);
       } else {
-        await ctx.editMessageText('🎉 You have reviewed all favorite vacancies!');
-        this.userFavoritesBrowsingState.delete(userId);
-      }
-    } else if (data === 'remove_from_favorite') {
-      const state = this.userFavoritesBrowsingState.get(userId);
-      if (!state) return;
-
-      const vacancy = state.vacancies[state.currentIndex];
-      if (vacancy._id) {
-        // Remove current vacancy from favorites
-        await this.dbService.updateVacancyFavorite(vacancy._id, false);
-
-        // Remove from local list
-        state.vacancies.splice(state.currentIndex, 1);
-
-        // Answer callback
-        await ctx.answerCallbackQuery({
-          text: '❌ Removed from favorites',
-          show_alert: false,
-        });
-
-        // Display next vacancy or show completion message
-        if (state.currentIndex < state.vacancies.length) {
-          await this.displayFavoriteVacancy(ctx, userId);
-        } else {
-          await ctx.editMessageText('🎉 You have reviewed all favorite vacancies!');
-          this.userFavoritesBrowsingState.delete(userId);
-        }
+        await ctx.editMessageText('🎉 You have viewed all vacancies!');
+        this.browsingStateService.clearBrowsingState(userId);
       }
     }
   }
 
-  // Helper method to display a vacancy with inline buttons
-  private async displayVacancy(ctx: Context, userId: number): Promise<void> {
-    const state = this.userBrowsingState.get(userId);
+  private async handleAddToFavorite(ctx: Context, userId: number): Promise<void> {
+    const state = this.browsingStateService.getBrowsingState(userId);
     if (!state) return;
 
     const vacancy = state.vacancies[state.currentIndex];
-    const messageText = this.formatVacancyMessage(vacancy, state.currentIndex, state.vacancies.length);
+    if (vacancy._id) {
+      await this.dbService.updateVacancyFavorite(vacancy._id, true);
+      state.currentIndex++;
 
-    // Create inline keyboard with buttons
+      await ctx.answerCallbackQuery({
+        text: '⭐ Added to favorites',
+        show_alert: false,
+      });
+
+      if (state.currentIndex < state.vacancies.length) {
+        await this.displayVacancy(ctx, userId);
+      } else {
+        await ctx.editMessageText('🎉 You have viewed all vacancies!');
+        this.browsingStateService.clearBrowsingState(userId);
+      }
+    }
+  }
+
+  private async handleNextFavorite(ctx: Context, userId: number): Promise<void> {
+    const state = this.browsingStateService.getFavoritesBrowsingState(userId);
+    if (!state) return;
+
+    state.currentIndex++;
+
+    await ctx.answerCallbackQuery({
+      text: '⏭️ Next favorite',
+      show_alert: false,
+    });
+
+    if (state.currentIndex < state.vacancies.length) {
+      await this.displayFavoriteVacancy(ctx, userId);
+    } else {
+      await ctx.editMessageText('🎉 You have reviewed all favorite vacancies!');
+      this.browsingStateService.clearFavoritesBrowsingState(userId);
+    }
+  }
+
+  private async handleRemoveFromFavorite(ctx: Context, userId: number): Promise<void> {
+    const state = this.browsingStateService.getFavoritesBrowsingState(userId);
+    if (!state) return;
+
+    const vacancy = state.vacancies[state.currentIndex];
+    if (vacancy._id) {
+      await this.dbService.updateVacancyFavorite(vacancy._id, false);
+      this.browsingStateService.removeFavoriteAtIndex(userId, state.currentIndex);
+
+      await ctx.answerCallbackQuery({
+        text: '❌ Removed from favorites',
+        show_alert: false,
+      });
+
+      if (state.currentIndex < state.vacancies.length) {
+        await this.displayFavoriteVacancy(ctx, userId);
+      } else {
+        await ctx.editMessageText('🎉 You have reviewed all favorite vacancies!');
+        this.browsingStateService.clearFavoritesBrowsingState(userId);
+      }
+    }
+  }
+
+  // Display vacancy with action buttons for browsing
+  private async displayVacancy(ctx: Context, userId: number): Promise<void> {
+    const state = this.browsingStateService.getBrowsingState(userId);
+    if (!state) return;
+
+    const vacancy = state.vacancies[state.currentIndex];
+    const messageText = this.vacancyFormatterService.formatVacancyMessage(
+      vacancy,
+      state.currentIndex,
+      state.vacancies.length,
+    );
+
     const keyboard = new InlineKeyboard()
       .url('🌐 Open URL', vacancy.url)
       .row()
@@ -336,15 +305,18 @@ export class BotUpdate implements OnModuleInit {
     });
   }
 
-  // Helper method to display a favorite vacancy with inline buttons
+  // Display favorite vacancy with action buttons
   private async displayFavoriteVacancy(ctx: Context, userId: number): Promise<void> {
-    const state = this.userFavoritesBrowsingState.get(userId);
+    const state = this.browsingStateService.getFavoritesBrowsingState(userId);
     if (!state) return;
 
     const vacancy = state.vacancies[state.currentIndex];
-    const messageText = this.formatVacancyMessage(vacancy, state.currentIndex, state.vacancies.length);
+    const messageText = this.vacancyFormatterService.formatVacancyMessage(
+      vacancy,
+      state.currentIndex,
+      state.vacancies.length,
+    );
 
-    // Create inline keyboard with buttons
     const keyboard = new InlineKeyboard()
       .url('🌐 Open URL', vacancy.url)
       .row()
@@ -356,31 +328,5 @@ export class BotUpdate implements OnModuleInit {
       reply_markup: keyboard,
       parse_mode: 'HTML',
     });
-  }
-
-  // Helper method to format vacancy details for display
-  private formatVacancyMessage(vacancy: Vacancy, currentIndex: number, totalCount: number): string {
-    return `
-<b>📌 Vacancy ${currentIndex + 1}/${totalCount}</b>
-
-<b>Title:</b> ${this.escapeHtml(vacancy.title)}
-<b>Domain:</b> ${this.escapeHtml(vacancy.domain)}
-<b>Score:</b> ${vacancy.score}
-
-<b>Description:</b>
-${this.escapeHtml(vacancy.description)}
-
-<b>URL:</b> <code>${this.escapeHtml(vacancy.url)}</code>
-    `.trim();
-  }
-
-  // Helper method to escape HTML special characters for Telegram
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
 }

@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { BotUpdate } from './bot.update';
 import { DbService } from '../db/db.service';
 import { JobsModule } from '../jobs/jobs.module';
+import { VacancyFormatterService } from './vacancy-formatter.service';
+import { BrowsingStateService } from './browsing-state.service';
 
 @Module({
   imports: [
@@ -19,6 +21,6 @@ import { JobsModule } from '../jobs/jobs.module';
     }),
     JobsModule,
   ],
-  providers: [BotUpdate, DbService],
+  providers: [BotUpdate, DbService, VacancyFormatterService, BrowsingStateService],
 })
 export class BotModule {}
