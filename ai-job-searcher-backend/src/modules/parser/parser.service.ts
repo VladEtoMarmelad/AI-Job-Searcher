@@ -88,9 +88,12 @@ export class ParserService implements OnModuleInit, OnModuleDestroy {
     const page = await context.newPage();
 
     try {
+      // Use domain-specific wait strategies to avoid timeouts on sites with persistent network activity
+      const waitStrategy = url.includes('robota.ua') ? 'load' : 'networkidle';
+
       // Navigate to the URL and wait until the network is idle (important for SPA)
       await page.goto(url, {
-        waitUntil: 'networkidle',
+        waitUntil: waitStrategy,
         timeout: 30000
       });
 
